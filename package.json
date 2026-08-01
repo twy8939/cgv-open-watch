@@ -1,0 +1,17 @@
+{
+  "name": "cgv-screenx-watch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "check": "node src/cli.js",
+    "lint": "node --check src/*.js test/*.test.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright-core": "1.62.1"
+  }
+}

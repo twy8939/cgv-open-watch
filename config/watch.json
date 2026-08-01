@@ -1,0 +1,13 @@
+{
+  "movieTitle": "스파이더맨-브랜드 뉴 데이",
+  "movieNo": "30001192",
+  "formats": ["SCREENX"],
+  "lookAheadDays": 14,
+  "theatres": [
+    {
+      "name": "용산아이파크몰",
+      "siteNo": "0013",
+      "detailNo": "0013001"
+    }
+  ]
+}
