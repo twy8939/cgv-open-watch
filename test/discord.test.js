@@ -43,6 +43,20 @@ test("같은 극장과 날짜의 회차를 한 메시지로 묶는다", () => {
   assert.deepEqual(batches[0].keys, [schedule.key, second.key]);
 });
 
+test("회차가 많으면 Discord 글자 제한 안에서 여러 메시지로 나눈다", () => {
+  const schedules = Array.from({ length: 80 }, (_, index) => ({
+    ...schedule,
+    key: `schedule-${index}`,
+    auditoriumName: `${index + 1}관`,
+    formatName: index % 2 === 0 ? "일반 2D" : "IMAX LASER 2D",
+    startTime: String(800 + index).padStart(4, "0"),
+  }));
+  const batches = createDiscordBatches(schedules);
+  assert.ok(batches.length > 1);
+  assert.ok(batches.every((batch) => batch.content.length <= 1_900));
+  assert.equal(new Set(batches.flatMap((batch) => batch.keys)).size, schedules.length);
+});
+
 test("Webhook URL을 요청 본문에 노출하지 않는다", async () => {
   let request;
   const fetchImpl = async (url, options) => {

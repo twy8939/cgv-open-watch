@@ -12,6 +12,13 @@ function displaySeats(schedule) {
   return schedule.remainingSeats == null ? "" : ` (${schedule.remainingSeats}석)`;
 }
 
+function displayFormat(schedule) {
+  const values = [schedule.formatName, schedule.screenGradeName, schedule.movieKindName]
+    .filter(Boolean)
+    .filter((value, index, items) => items.indexOf(value) === index);
+  return values.join(" / ") || "일반 상영";
+}
+
 export function createDiscordMessage(schedule) {
   const seats = schedule.remainingSeats == null
     ? ""
@@ -19,10 +26,11 @@ export function createDiscordMessage(schedule) {
   const bookingUrl = "https://cgv.co.kr/cnm/movieBook/cinema";
 
   return [
-    "**🎬 CGV SCREENX 예매 오픈**",
+    "**🎬 CGV 예매 오픈**",
     `영화: ${schedule.movieTitle}`,
     `극장: ${schedule.theatreName}`,
     `상영관: ${schedule.auditoriumName || schedule.formatName}`,
+    `형식: ${displayFormat(schedule)}`,
     `일시: ${displayDate(schedule.showDate)} ${displayTime(schedule.startTime)}${seats}`,
     `예매: ${bookingUrl}`,
   ].join("\n");
@@ -30,6 +38,8 @@ export function createDiscordMessage(schedule) {
 
 export function createDiscordBatches(schedules) {
   const bookingUrl = "https://cgv.co.kr/cnm/movieBook/cinema";
+  const maxMessageLength = 1_900;
+  const maxSectionLength = 1_200;
   const groups = new Map();
 
   for (const schedule of schedules) {
@@ -38,41 +48,77 @@ export function createDiscordBatches(schedules) {
       movieTitle: schedule.movieTitle,
       theatreName: schedule.theatreName,
       showDate: schedule.showDate,
-      auditoriums: new Map(),
+      sections: new Map(),
     };
-    const auditorium = schedule.auditoriumName || schedule.formatName || "SCREENX";
-    const rows = group.auditoriums.get(auditorium) ?? [];
+    const auditorium = schedule.auditoriumName || "상영관 정보 없음";
+    const format = displayFormat(schedule);
+    const sectionKey = `${auditorium}\u0000${format}`;
+    const section = group.sections.get(sectionKey) ?? { auditorium, format, rows: [] };
+    const rows = section.rows;
     rows.push(schedule);
-    group.auditoriums.set(auditorium, rows);
+    group.sections.set(sectionKey, section);
     groups.set(key, group);
   }
 
-  return [...groups.values()].map((group) => {
-    const sections = [...group.auditoriums.entries()].map(([auditorium, rows]) => {
-      const times = rows
-        .sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)))
-        .map((schedule) => `${displayTime(schedule.startTime)}${displaySeats(schedule)}`)
-        .join(", ");
-      return `상영관: ${auditorium}\n시간: ${times}`;
-    });
-
-    const content = [
-      "**🎬 CGV SCREENX 예매 오픈**",
+  const batches = [];
+  for (const group of groups.values()) {
+    const header = [
+      "**🎬 CGV 예매 오픈**",
       `영화: ${group.movieTitle}`,
       `극장: ${group.theatreName}`,
       `날짜: ${displayDate(group.showDate)}`,
-      ...sections,
-      `예매: ${bookingUrl}`,
-    ].join("\n");
+    ];
+    const footer = `예매: ${bookingUrl}`;
+    const sectionChunks = [];
 
-    if (content.length > 2_000) {
-      throw new Error(`Discord message is too long (${content.length} characters)`);
+    for (const section of group.sections.values()) {
+      const prefix = `상영관: ${section.auditorium}\n형식: ${section.format}\n시간: `;
+      const sortedRows = [...section.rows]
+        .sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)));
+      let tokens = [];
+      let keys = [];
+      for (const schedule of sortedRows) {
+        const token = `${displayTime(schedule.startTime)}${displaySeats(schedule)}`;
+        const candidate = `${prefix}${[...tokens, token].join(", ")}`;
+        if (candidate.length > maxSectionLength && tokens.length > 0) {
+          sectionChunks.push({ text: `${prefix}${tokens.join(", ")}`, keys });
+          tokens = [];
+          keys = [];
+        }
+        tokens.push(token);
+        keys.push(schedule.key);
+      }
+      if (tokens.length > 0) {
+        sectionChunks.push({ text: `${prefix}${tokens.join(", ")}`, keys });
+      }
     }
-    return {
-      content,
-      keys: [...group.auditoriums.values()].flat().map((schedule) => schedule.key),
+
+    let currentSections = [];
+    let currentKeys = [];
+    const flush = () => {
+      if (currentSections.length === 0) return;
+      batches.push({
+        content: [...header, ...currentSections, footer].join("\n"),
+        keys: currentKeys,
+      });
+      currentSections = [];
+      currentKeys = [];
     };
-  });
+
+    for (const section of sectionChunks) {
+      const candidate = [...header, ...currentSections, section.text, footer].join("\n");
+      if (candidate.length > maxMessageLength && currentSections.length > 0) flush();
+      const single = [...header, section.text, footer].join("\n");
+      if (single.length > maxMessageLength) {
+        throw new Error(`Discord message section is too long (${single.length} characters)`);
+      }
+      currentSections.push(section.text);
+      currentKeys.push(...section.keys);
+    }
+    flush();
+  }
+
+  return batches;
 }
 
 export function createDiscordMessages(schedules) {

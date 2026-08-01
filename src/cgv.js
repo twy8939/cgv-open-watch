@@ -57,6 +57,7 @@ function mapApiSchedule(item, theatre, now = new Date()) {
     auditoriumName: item.expoScnsNm ?? item.scnsNm ?? item.auditoriumName ?? "",
     formatName: [item.movkndDsplNm, item.movkndDsplEnm, item.movkndNm, item.videoAddexpCont]
       .filter(Boolean)
+      .filter((value, index, values) => values.indexOf(value) === index)
       .join(" "),
     screenGradeName: item.tcscnsGradNm ?? item.scnsGradNm ?? item.scnsGradCdNm ?? "",
     movieKindName: item.movkndCdNm ?? "",
@@ -166,8 +167,8 @@ async function fetchTheatreSchedules(page, theatre, config) {
 }
 
 export async function collectCgvSchedules(config, options = {}) {
-  if (!config?.movieTitle || !Array.isArray(config.formats) || config.formats.length === 0) {
-    throw new Error("watch config requires movieTitle and formats");
+  if (!config?.movieTitle || !Array.isArray(config.formats)) {
+    throw new Error("watch config requires movieTitle and a formats array");
   }
   if (!Array.isArray(config.theatres) || config.theatres.length === 0
       || config.theatres.some((item) => !item.name || !item.siteNo || !item.detailNo)) {

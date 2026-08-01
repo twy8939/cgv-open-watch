@@ -32,7 +32,7 @@ test("매진과 예매 종료 회차를 제외한다", () => {
   assert.equal(isBookableSchedule({ ...base, saleEnabled: false }), false);
 });
 
-test("SCREENX 회차만 선택한다", () => {
+test("설정한 상영 형식만 선택한다", () => {
   const config = { movieTitle: base.movieTitle, formats: ["SCREENX"] };
   const selected = selectTargetSchedules([
     base,
@@ -41,6 +41,15 @@ test("SCREENX 회차만 선택한다", () => {
   ], config);
   assert.equal(selected.length, 1);
   assert.equal(selected[0].key, makeScheduleKey(base));
+});
+
+test("상영 형식 목록이 비어 있으면 모든 형식을 선택한다", () => {
+  const config = { movieTitle: base.movieTitle, formats: [] };
+  const selected = selectTargetSchedules([
+    base,
+    { ...base, startTime: "2000", auditoriumName: "IMAX관", formatName: "IMAX LASER 2D" },
+  ], config);
+  assert.equal(selected.length, 2);
 });
 
 test("알림 키는 시작 시간과 상영관을 구분한다", () => {

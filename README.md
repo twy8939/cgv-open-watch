@@ -1,6 +1,6 @@
-# CGV SCREENX Watch
+# CGV Open Watch
 
-CGV 공개 예매 화면에서 `스파이더맨-브랜드 뉴 데이`의 SCREENX 회차가 새로 열리면 Discord로 알리는 감시기입니다. 기본 지점은 CGV 용산아이파크몰입니다.
+CGV 공개 예매 화면에서 지정한 영화의 새 회차가 열리면 Discord로 알리는 범용 감시기입니다. 영화, 극장, 상영 형식을 설정할 수 있으며 기본 예시는 `스파이더맨-브랜드 뉴 데이`와 CGV 용산아이파크몰입니다.
 
 ## 운영 방식
 
@@ -8,7 +8,7 @@ CGV 공개 예매 화면에서 `스파이더맨-브랜드 뉴 데이`의 SCREENX
 - CGV 지점 공개 화면을 Chrome으로 열고, 화면이 사용하는 공식 읽기 전용 일정 응답을 확인합니다.
 - 로그인, CAPTCHA, 유료 기능, 접근 제한을 우회하지 않습니다.
 - 발견한 회차와 아직 보내지 못한 알림은 `state/notifications.json`에 저장해 재시작 후에도 이어서 처리합니다.
-- 같은 날짜에 함께 열린 회차는 한 메시지로 묶어 Discord 알림 폭주를 줄입니다.
+- 같은 날짜에 함께 열린 회차는 Discord 글자 제한 안에서 묶어 알림 폭주를 줄입니다.
 - CGV의 일시적 서버 오류와 Discord 요청 제한은 제한된 횟수만 자동 재시도합니다.
 - 새 회차를 먼저 상태 파일에 커밋하고 Discord 전송에 성공한 회차만 대기열에서 제거합니다.
 - 상태 파일은 새 회차 발견, 전송 완료, 오래된 기록 정리, 30일 주기 유지 갱신 때만 커밋됩니다.
@@ -19,7 +19,7 @@ CGV 공개 예매 화면에서 `스파이더맨-브랜드 뉴 데이`의 SCREENX
 1. 이 폴더를 공개 GitHub 저장소에 올립니다.
 2. Discord에서 알림을 받을 채널의 Webhook을 만듭니다.
 3. GitHub `Settings > Secrets and variables > Actions`에 `DISCORD_WEBHOOK_URL`로 저장합니다.
-4. `Actions > CGV SCREENX watch > Run workflow`로 첫 실행을 시작합니다.
+4. `Actions > CGV booking watch > Run workflow`로 첫 실행을 시작합니다.
 
 저장소나 조직에서 Actions의 쓰기 권한을 제한했다면 `Settings > Actions > General > Workflow permissions`에서 상태 파일 커밋을 허용해야 합니다. 기본 브랜치가 보호되어 자동 커밋을 막는 경우에도 예외 설정이 필요합니다.
 
@@ -37,9 +37,28 @@ npm run check -- --dry-run
 
 Chrome을 기본 경로에서 찾지 못하면 `CHROME_PATH`를 지정합니다.
 
-## 감시 지점 변경
+## 감시 대상 변경
 
-[`config/watch.json`](./config/watch.json)의 `theatres`에 지점을 추가합니다.
+[`config/watch.json`](./config/watch.json)에서 영화, 상영 형식, 지점을 변경합니다.
+
+```json
+{
+  "movieTitle": "스파이더맨-브랜드 뉴 데이",
+  "movieNo": "30001192",
+  "formats": [],
+  "lookAheadDays": 14
+}
+```
+
+`formats`가 빈 배열이면 일반관을 포함한 모든 형식을 감시합니다. 원하는 형식만 감시하려면 다음처럼 입력합니다.
+
+```json
+{
+  "formats": ["IMAX", "4DX", "SCREENX"]
+}
+```
+
+`"*"`, `"ALL"`, `"전체"`도 모든 형식을 의미합니다. 지점을 추가하려면 `theatres` 배열에 다음 정보를 넣습니다.
 
 ```json
 {

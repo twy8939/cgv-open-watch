@@ -1,4 +1,4 @@
-name: CGV SCREENX watch
+name: CGV booking watch
 
 on:
   schedule:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: cgv-screenx-watch
+  group: cgv-open-watch
   cancel-in-progress: false
 
 jobs:

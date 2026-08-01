@@ -11,7 +11,12 @@ export function titleMatches(actualTitle, expectedTitle) {
   return actual.length > 0 && actual === expected;
 }
 
-export function isScreenXSchedule(schedule, formats = ["SCREENX"]) {
+export function formatMatches(schedule, formats = []) {
+  if (!Array.isArray(formats) || formats.length === 0) return true;
+  if (formats.some((format) => ["*", "ALL", "전체"].includes(String(format).trim().toUpperCase()))) {
+    return true;
+  }
+
   const haystack = normalizeText([
     schedule.formatName,
     schedule.auditoriumName,
@@ -46,7 +51,7 @@ export function makeScheduleKey(schedule) {
 export function selectTargetSchedules(schedules, config) {
   return schedules
     .filter((schedule) => titleMatches(schedule.movieTitle, config.movieTitle))
-    .filter((schedule) => isScreenXSchedule(schedule, config.formats))
+    .filter((schedule) => formatMatches(schedule, config.formats))
     .filter(isBookableSchedule)
     .map((schedule) => ({ ...schedule, key: makeScheduleKey(schedule) }))
     .sort((left, right) => left.key.localeCompare(right.key));

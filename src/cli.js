@@ -57,7 +57,8 @@ async function main() {
     await writeState(statePath, result.state);
   }
 
-  console.log(`CGV 일정 ${allSchedules.length}개, 대상 SCREENX 회차 ${targets.length}개`);
+  const formatLabel = config.formats.length > 0 ? config.formats.join(", ") : "전체 형식";
+  console.log(`CGV 일정 ${allSchedules.length}개, 대상 회차 ${targets.length}개 (${formatLabel})`);
   if (!result.changed) {
     console.log("새로 열린 회차가 없습니다.");
   }
