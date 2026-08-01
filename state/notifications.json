@@ -1,7 +1,7 @@
 {
   "version": 2,
   "initialized": true,
-  "updatedAt": "2026-08-01T15:49:28.250Z",
+  "updatedAt": "2026-08-01T16:09:18.275Z",
   "seen": {
     "0013:스파이더맨브랜드뉴데이:20260801:15관laser:2600": {
       "firstSeenAt": "2026-08-01T15:49:28.250Z",
@@ -3722,7 +3722,39 @@
       "movieTitle": "스파이더맨-브랜드 뉴 데이",
       "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
       "startTime": "2050"
+    },
+    "0013:스파이더맨브랜드뉴데이:20260808:템퍼시네마acinedechef:1520": {
+      "firstSeenAt": "2026-08-01T16:09:18.275Z",
+      "showDate": "20260808",
+      "theatreName": "용산아이파크몰",
+      "movieTitle": "스파이더맨-브랜드 뉴 데이",
+      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
+      "startTime": "1520"
     }
   },
-  "pending": {}
+  "pending": {
+    "0013:스파이더맨브랜드뉴데이:20260808:템퍼시네마acinedechef:1520": {
+      "siteNo": "0013",
+      "theatreName": "용산아이파크몰",
+      "movieTitle": "스파이더맨-브랜드 뉴 데이",
+      "movieNo": "30001192",
+      "showDate": "20260808",
+      "startTime": "1520",
+      "endTime": "1750",
+      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
+      "formatName": "2D",
+      "screenGradeName": "일반",
+      "movieKindName": "",
+      "remainingSeats": 2,
+      "totalSeats": 50,
+      "startsAt": "2026-08-08T06:20:00.000Z",
+      "disabled": false,
+      "bookingClosed": false,
+      "soldOut": false,
+      "saleEnabled": true,
+      "rawStatus": "",
+      "key": "0013:스파이더맨브랜드뉴데이:20260808:템퍼시네마acinedechef:1520",
+      "queuedAt": "2026-08-01T16:09:18.275Z"
+    }
+  }
 }
