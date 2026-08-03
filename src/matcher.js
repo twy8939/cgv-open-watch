@@ -92,7 +92,7 @@ export function selectTargetSchedules(schedules, config) {
       return {
         ...schedule,
         baseKey,
-        key: config.id ? `${config.id}:${baseKey}` : baseKey,
+        key: config.id && config.id !== "legacy-default" ? `${config.id}:${baseKey}` : baseKey,
         ruleId: config.id ?? null,
         ruleName: config.name ?? null,
       };

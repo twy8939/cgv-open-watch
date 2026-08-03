@@ -80,3 +80,13 @@ test("상영관·기간·시간·최소 좌석 조건을 함께 적용한다", (
   assert.equal(selected.length, 1);
   assert.match(selected[0].key, /^rule-a:/);
 });
+
+test("기존 기본 규칙은 이전 알림 키를 유지한다", () => {
+  const selected = selectTargetSchedules([base], {
+    id: "legacy-default",
+    movieTitle: base.movieTitle,
+    theatres: [{ siteNo: "0013" }],
+    formats: [],
+  });
+  assert.equal(selected[0].key, makeScheduleKey(base));
+});
