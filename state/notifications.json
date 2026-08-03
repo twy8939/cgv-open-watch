@@ -1,7 +1,7 @@
 {
   "version": 2,
   "initialized": true,
-  "updatedAt": "2026-08-03T02:31:08.659Z",
+  "updatedAt": "2026-08-03T02:31:11.141Z",
   "seen": {
     "0013:스파이더맨브랜드뉴데이:20260801:15관laser:2600": {
       "firstSeenAt": "2026-08-01T15:49:28.250Z",
@@ -3780,29 +3780,5 @@
       "startTime": "1630"
     }
   },
-  "pending": {
-    "0013:스파이더맨브랜드뉴데이:20260803:screenx관리클라이너withprivatebox:1630": {
-      "siteNo": "0013",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "movieNo": "30001192",
-      "showDate": "20260803",
-      "startTime": "1630",
-      "endTime": "1905",
-      "auditoriumName": "SCREENX관 (리클라이너) with PRIVATE BOX",
-      "formatName": "SCREENX DOLBY ATMOS mix 2D 4면",
-      "screenGradeName": "SCREENX",
-      "movieKindName": "",
-      "remainingSeats": 1,
-      "totalSeats": 200,
-      "startsAt": "2026-08-03T07:30:00.000Z",
-      "disabled": false,
-      "bookingClosed": false,
-      "soldOut": false,
-      "saleEnabled": true,
-      "rawStatus": "",
-      "key": "0013:스파이더맨브랜드뉴데이:20260803:screenx관리클라이너withprivatebox:1630",
-      "queuedAt": "2026-08-03T02:31:08.659Z"
-    }
-  }
+  "pending": {}
 }
