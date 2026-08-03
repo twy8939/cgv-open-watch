@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#171717" />
     <title>CGV Open Watch</title>
-    <link rel="stylesheet" href="/styles.css?v=20260803-8" />
-    <script src="/app.js?v=20260803-8" type="module"></script>
+    <link rel="stylesheet" href="/styles.css?v=20260803-9" />
+    <script src="/app.js?v=20260803-9" type="module"></script>
   </head>
   <body>
     <section id="loginView" class="login-view" hidden>
@@ -140,10 +140,10 @@
               </div>
               <div class="quick-heading-actions">
                 <button id="spiderPresetButton" type="button" class="button button-tertiary">스파이더맨 · 용산 · SCREENX</button>
-                <label class="quick-rule-picker"
-                  ><span>바꿀 규칙</span
-                  ><select id="quickRuleSelect" aria-label="빠르게 변경할 감시 규칙"></select
-                ></label>
+                <div id="quickRulePicker" class="quick-rule-picker">
+                  <span>바꿀 규칙</span>
+                  <div id="quickRuleTabs" class="quick-rule-tabs" role="tablist" aria-label="빠르게 변경할 감시 규칙"></div>
+                </div>
               </div>
             </div>
 
@@ -154,16 +154,22 @@
 
             <form id="quickForm" class="quick-form" novalidate>
               <div class="quick-fields">
-                <label class="quick-field"
-                  ><span><i>1</i>영화</span
-                  ><input id="quickMovie" list="quickMovieOptions" autocomplete="off" placeholder="영화 제목 검색" required />
+                <div class="quick-field">
+                  <span><i>1</i>영화</span>
+                  <button id="quickMoviePicker" type="button" class="picker-trigger" data-picker-open="quick-movie" aria-haspopup="dialog" aria-expanded="false">
+                    <span><strong id="quickMovieValue">영화를 선택해 주세요</strong><small id="quickMovieMeta">영화명으로 검색할 수 있습니다.</small></span><i aria-hidden="true">⌄</i>
+                  </button>
+                  <input id="quickMovie" type="hidden" /><input id="quickMovieNo" type="hidden" />
                   <small>목록에 없으면 제목을 직접 입력해도 됩니다.</small>
-                </label>
-                <label class="quick-field"
-                  ><span><i>2</i>극장</span
-                  ><input id="quickTheatre" list="quickTheatreOptions" autocomplete="off" placeholder="예: 용산아이파크몰" required />
+                </div>
+                <div class="quick-field">
+                  <span><i>2</i>극장</span>
+                  <button id="quickTheatrePicker" type="button" class="picker-trigger" data-picker-open="quick-theatre" aria-haspopup="dialog" aria-expanded="false">
+                    <span><strong id="quickTheatreValue">극장을 선택해 주세요</strong><small id="quickTheatreMeta">지역과 극장명으로 검색할 수 있습니다.</small></span><i aria-hidden="true">⌄</i>
+                  </button>
+                  <input id="quickTheatre" type="hidden" /><input id="quickTheatreSiteNo" type="hidden" />
                   <small>한 곳을 선택하면 가장 빠르고 정확하게 확인합니다.</small>
-                </label>
+                </div>
                 <fieldset class="quick-field quick-format-field">
                   <legend><i>3</i>상영 형식</legend>
                   <div class="quick-format-options">
@@ -186,8 +192,6 @@
                 </div>
               </div>
 
-              <datalist id="quickMovieOptions"></datalist>
-              <datalist id="quickTheatreOptions"></datalist>
               <div id="quickSafetyNotice" class="quick-safety-notice" hidden>
                 <b>상세 조건이 있는 규칙입니다.</b>
                 <span>복수 극장·정확한 상영관·시간·좌석 조건을 보호하기 위해 전체 설정 편집에서 변경해 주세요.</span>
@@ -341,11 +345,12 @@
                 </div>
               </div>
               <div class="field-stack">
-                <label
-                  >현재 영화 목록<select id="movieSelect">
-                    <option value="">직접 입력하기</option>
-                  </select></label
-                >
+                <div class="wizard-picker-block">
+                  <span>CGV 영화 찾기</span>
+                  <button id="wizardMoviePicker" type="button" class="picker-trigger" data-picker-open="wizard-movie" aria-haspopup="dialog" aria-expanded="false">
+                    <span><strong id="wizardMovieValue">영화를 선택해 주세요</strong><small id="wizardMovieMeta">검색하거나 제목을 직접 사용할 수 있습니다.</small></span><i aria-hidden="true">⌄</i>
+                  </button>
+                </div>
                 <div class="two-fields">
                   <label
                     >영화 제목 <em>필수</em
@@ -391,23 +396,14 @@
                   </p>
                 </div>
               </div>
-              <div class="theatre-searchbar">
-                <select id="regionSelect">
-                  <option value="">모든 지역</option></select
-                ><label class="search-box"
-                  ><span aria-hidden="true">⌕</span
-                  ><span class="sr-only">극장 검색</span
-                  ><input
-                    id="theatreSearch"
-                    type="search"
-                    placeholder="극장 이름 검색"
-                /></label>
-              </div>
+              <button id="wizardTheatrePicker" type="button" class="picker-trigger picker-trigger-large" data-picker-open="wizard-theatre" aria-haspopup="dialog" aria-expanded="false">
+                <span><strong>극장 검색 및 선택</strong><small>지역과 이름으로 찾고 여러 극장을 한 번에 선택할 수 있습니다.</small></span><i aria-hidden="true">⌄</i>
+              </button>
               <div class="selection-line">
                 <b id="selectedTheatreCount">0개 극장 선택</b
                 ><span>활성 영화·극장 조합은 최대 12개</span>
               </div>
-              <div id="theatreOptions" class="theatre-options"></div>
+              <div id="wizardTheatreSelections" class="selected-theatre-chips" aria-live="polite"></div>
             </section>
 
             <section class="wizard-panel" data-panel="3">
@@ -597,6 +593,28 @@
           </footer>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="pickerDialog" class="picker-dialog" aria-labelledby="pickerTitle" aria-describedby="pickerDescription">
+      <div class="picker-sheet">
+        <div class="picker-handle" aria-hidden="true"></div>
+        <header class="picker-header">
+          <div><p class="kicker">SELECT</p><h2 id="pickerTitle">선택하기</h2><p id="pickerDescription">원하는 항목을 검색해 주세요.</p></div>
+          <button id="pickerClose" type="button" class="close-button" aria-label="선택 창 닫기">×</button>
+        </header>
+        <div class="picker-search-wrap">
+          <span aria-hidden="true">⌕</span>
+          <input id="pickerSearch" type="search" role="combobox" aria-label="항목 검색" aria-autocomplete="list" aria-expanded="false" aria-controls="pickerList" placeholder="검색" autocomplete="off" />
+        </div>
+        <div id="pickerRegions" class="picker-regions" role="group" aria-label="지역 필터" hidden></div>
+        <div class="picker-status"><span id="pickerResultCount" aria-live="polite"></span><button id="pickerClear" type="button" hidden>선택 해제</button></div>
+        <div id="pickerList" class="picker-list" role="listbox" aria-multiselectable="false"></div>
+        <div id="pickerEmpty" class="picker-empty" hidden><b>검색 결과가 없습니다.</b><span>검색어를 바꿔 다시 찾아보세요.</span></div>
+        <footer class="picker-footer">
+          <button id="pickerCustomMovie" type="button" class="button button-tertiary" hidden>입력한 제목 그대로 사용</button>
+          <button id="pickerDone" type="button" class="button button-primary" hidden>선택 완료</button>
+        </footer>
+      </div>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

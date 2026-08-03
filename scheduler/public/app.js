@@ -11,7 +11,17 @@ const state = {
   draftDates: new Set(),
   dirty: false,
   intervalMinutes: 5,
-  quickRuleIndex: 0,
+  quickRuleId: null,
+  picker: {
+    kind: null,
+    context: null,
+    multiple: false,
+    region: "",
+    items: [],
+    filteredItems: [],
+    activeIndex: -1,
+    trigger: null,
+  },
 };
 
 async function api(path, options = {}) {
@@ -88,6 +98,13 @@ function digits(value) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ko-KR")
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
 function displayTime(value) {
   const valueDigits = digits(value).padStart(4, "0");
   return `${valueDigits.slice(0, 2)}:${valueDigits.slice(2)}`;
@@ -119,21 +136,34 @@ function dateText(rule) {
 }
 
 function quickRule() {
-  return state.config.rules[state.quickRuleIndex] ?? state.config.rules[0] ?? null;
+  return state.config.rules.find((rule) => rule.id === state.quickRuleId)
+    ?? state.config.rules[0]
+    ?? null;
 }
 
-function exactCatalogMovie(title) {
-  const normalized = String(title ?? "").trim().toLocaleLowerCase("ko-KR");
-  return state.catalog.movies.find(
-    (movie) => movie.title.trim().toLocaleLowerCase("ko-KR") === normalized,
-  );
+function quickRuleIndex() {
+  const id = quickRule()?.id;
+  return state.config.rules.findIndex((rule) => rule.id === id);
 }
 
-function exactCatalogTheatre(name) {
-  const normalized = String(name ?? "").trim().toLocaleLowerCase("ko-KR");
-  return state.catalog.theatres.find(
-    (theatre) => theatre.name.trim().toLocaleLowerCase("ko-KR") === normalized,
-  );
+function setQuickMovie(movie) {
+  $("#quickMovie").value = movie?.title ?? "";
+  $("#quickMovieNo").value = movie?.no ?? "";
+  $("#quickMovieValue").textContent = movie?.title || "영화를 선택해 주세요";
+  $("#quickMovieMeta").textContent = movie?.no
+    ? `CGV 영화번호 ${movie.no}`
+    : movie?.title ? "직접 입력한 영화 제목" : "영화명으로 검색할 수 있습니다.";
+}
+
+function setQuickTheatre(theatre) {
+  $("#quickTheatre").value = theatre?.name ?? "";
+  $("#quickTheatreSiteNo").value = theatre?.siteNo ?? "";
+  $("#quickTheatreValue").textContent = theatre?.name || "극장을 선택해 주세요";
+  const region = state.catalog.regions.find((item) => item.code === theatre?.regionCode)?.name
+    ?? theatre?.regionName;
+  $("#quickTheatreMeta").textContent = theatre?.siteNo
+    ? `${region ? `${region} · ` : ""}CGV ${theatre.siteNo}`
+    : "지역과 극장명으로 검색할 수 있습니다.";
 }
 
 function quickFormat() {
@@ -170,37 +200,27 @@ function renderQuickSetup() {
   $("#quickEmpty").hidden = hasRules;
   $("#quickForm").hidden = !hasRules;
   $("#spiderPresetButton").hidden = !hasRules;
-  $("#quickRuleSelect").closest("label").hidden = !hasRules;
+  $("#quickRulePicker").hidden = !hasRules;
   if (!hasRules) return;
 
-  state.quickRuleIndex = Math.min(state.quickRuleIndex, rules.length - 1);
-  const selectedId = quickRule()?.id;
-  $("#quickRuleSelect").innerHTML = rules
-    .map((rule, index) => `<option value="${index}" ${rule.id === selectedId ? "selected" : ""}>${escapeHtml(rule.name || rule.movieTitle)}</option>`)
-    .join("");
+  if (!rules.some((rule) => rule.id === state.quickRuleId)) state.quickRuleId = rules[0].id;
   const rule = quickRule();
-
-  const movieTitles = [...new Set([
-    rule.movieTitle,
-    ...state.catalog.movies.map((movie) => movie.title),
-  ].filter(Boolean))];
-  $("#quickMovieOptions").innerHTML = movieTitles
-    .map((title) => `<option value="${escapeHtml(title)}"></option>`)
+  $("#quickRuleTabs").innerHTML = rules
+    .map((candidate) => {
+      const active = candidate.id === rule.id;
+      const status = candidate.completionReason === "booked"
+        ? "예매 완료"
+        : candidate.enabled ? "감지 중" : "꺼짐";
+      return `<button type="button" role="tab" tabindex="${active ? "0" : "-1"}" data-quick-rule-id="${escapeHtml(candidate.id)}" aria-selected="${active}" class="${active ? "active" : ""}"><span>${escapeHtml(candidate.movieTitle)}</span><small>${escapeHtml(candidate.theatres[0]?.name ?? "극장 미지정")} · ${escapeHtml(candidate.formats?.join(", ") || "모든 형식")} · ${escapeHtml(status)}</small></button>`;
+    })
     .join("");
-  const theatreNames = [...new Set([
-    ...rule.theatres.map((theatre) => theatre.name),
-    ...state.catalog.theatres.map((theatre) => theatre.name),
-  ].filter(Boolean))];
-  $("#quickTheatreOptions").innerHTML = theatreNames
-    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
-    .join("");
-
-  $("#quickMovie").value = rule.movieTitle;
-  $("#quickTheatre").value = rule.theatres[0]?.name ?? "";
+  setQuickMovie({ title: rule.movieTitle, no: rule.movieNo });
+  setQuickTheatre(rule.theatres[0]);
   const supportedFormat = rule.formats.length === 1
     && ["SCREENX", "IMAX", "4DX"].includes(rule.formats[0])
     ? rule.formats[0]
     : "";
+  $$('input[name="quickFormat"]').forEach((input) => { input.checked = false; });
   const formatInput = $(`input[name="quickFormat"][value="${supportedFormat}"]`);
   if (formatInput) formatInput.checked = true;
   const selectedDate = rule.dateMode === "specific"
@@ -213,7 +233,7 @@ function renderQuickSetup() {
   $("#quickSafetyNotice").hidden = editable;
   $("#spiderPresetButton").disabled = !editable;
   $("#quickSaveButton").disabled = !editable;
-  ["#quickMovie", "#quickTheatre", "#quickDate"].forEach((selector) => {
+  ["#quickMoviePicker", "#quickTheatrePicker", "#quickDate"].forEach((selector) => {
     $(selector).disabled = !editable;
   });
   $$('input[name="quickFormat"], [data-quick-date]').forEach((input) => {
@@ -297,67 +317,217 @@ function renderRules() {
 }
 
 function renderCatalogOptions() {
-  $("#movieSelect").innerHTML =
-    '<option value="">목록에 없는 영화 직접 입력</option>' +
-    state.catalog.movies
-      .map(
-        (movie) =>
-          `<option value="${escapeHtml(movie.no)}">${escapeHtml(movie.title)}</option>`,
-      )
-      .join("");
-  $("#regionSelect").innerHTML =
-    '<option value="">모든 지역</option>' +
-    state.catalog.regions
-      .map(
-        (region) =>
-          `<option value="${escapeHtml(region.code)}">${escapeHtml(region.name)}</option>`,
-      )
-      .join("");
   $("#movieCatalogCount").textContent = state.catalog.movies.length || "0";
   $("#theatreCatalogCount").textContent = state.catalog.theatres.length || "0";
 }
 
 function renderTheatres() {
-  const region = $("#regionSelect").value;
-  const query = $("#theatreSearch").value.trim().toLocaleLowerCase("ko-KR");
-  const theatres = state.catalog.theatres.filter(
-    (theatre) =>
-      (!region || theatre.regionCode === region) &&
-      (!query || theatre.name.toLocaleLowerCase("ko-KR").includes(query)),
-  );
   $("#selectedTheatreCount").textContent =
     `${state.draftTheatres.size}개 극장 선택`;
-  $("#theatreOptions").innerHTML = theatres.length
-    ? theatres
-        .map(
-          (theatre) =>
-            `<label><input type="checkbox" value="${escapeHtml(theatre.siteNo)}" ${state.draftTheatres.has(theatre.siteNo) ? "checked" : ""} /><span>${escapeHtml(theatre.name)}</span></label>`,
-        )
-        .join("")
-    : `<div class="empty-state"><div><h3>극장을 찾지 못했습니다.</h3><p>검색어를 바꾸거나 CGV 목록을 갱신해 주세요.</p></div></div>`;
-  $$("#theatreOptions input").forEach((input) =>
-    input.addEventListener("change", () => {
-      const theatre = state.catalog.theatres.find(
-        (item) => item.siteNo === input.value,
-      );
-      if (input.checked && theatre) {
-        const regionItem = state.catalog.regions.find(
-          (item) => item.code === theatre.regionCode,
-        );
-        state.draftTheatres.set(input.value, {
-          name: theatre.name,
-          siteNo: theatre.siteNo,
-          regionCode: theatre.regionCode,
-          regionName: regionItem?.name ?? "",
-        });
-      } else {
-        state.draftTheatres.delete(input.value);
-      }
+  $("#wizardTheatreSelections").innerHTML = state.draftTheatres.size > 0
+    ? [...state.draftTheatres.values()].map((theatre) =>
+        `<span><b>${escapeHtml(theatre.name)}</b><small>CGV ${escapeHtml(theatre.siteNo)}</small><button type="button" data-remove-theatre="${escapeHtml(theatre.siteNo)}" aria-label="${escapeHtml(theatre.name)} 선택 해제">×</button></span>`,
+      ).join("")
+    : '<p>선택한 극장이 없습니다. 위 버튼을 눌러 극장을 찾아보세요.</p>';
+  $$("[data-remove-theatre]").forEach((button) =>
+    button.addEventListener("click", () => {
+      state.draftTheatres.delete(button.dataset.removeTheatre);
       state.dialogDirty = true;
-      $("#selectedTheatreCount").textContent =
-        `${state.draftTheatres.size}개 극장 선택`;
+      renderTheatres();
     }),
   );
+}
+
+function setWizardMovie(movie) {
+  $("#movieTitle").value = movie?.title ?? "";
+  $("#movieNo").value = movie?.no ?? "";
+  $("#wizardMovieValue").textContent = movie?.title || "영화를 선택해 주세요";
+  $("#wizardMovieMeta").textContent = movie?.no
+    ? `CGV 영화번호 ${movie.no}`
+    : movie?.title ? "직접 입력한 영화 제목" : "검색하거나 제목을 직접 사용할 수 있습니다.";
+}
+
+function pickerItemKey(item) {
+  return state.picker.kind === "movie" ? item.no : item.siteNo;
+}
+
+function pickerItemLabel(item) {
+  return state.picker.kind === "movie" ? item.title : item.name;
+}
+
+function pickerItemDescription(item) {
+  if (state.picker.kind === "movie") {
+    const release = /^\d{8}$/.test(item.releaseDate ?? "") ? ` · ${formatDate(item.releaseDate)} 개봉` : "";
+    return `CGV 영화번호 ${item.no}${release}`;
+  }
+  const region = state.catalog.regions.find((candidate) => candidate.code === item.regionCode)?.name
+    ?? item.regionName;
+  return `${region ? `${region} · ` : ""}CGV ${item.siteNo}`;
+}
+
+function pickerSelected(item) {
+  const key = pickerItemKey(item);
+  if (state.picker.context === "quick-movie") return $("#quickMovieNo").value === key;
+  if (state.picker.context === "quick-theatre") return $("#quickTheatreSiteNo").value === key;
+  if (state.picker.context === "wizard-movie") return $("#movieNo").value === key;
+  return state.draftTheatres.has(key);
+}
+
+function pickerSourceItems(kind) {
+  if (kind === "movie") return [...state.catalog.movies];
+  const items = [...state.catalog.theatres];
+  for (const theatre of state.draftTheatres.values()) {
+    if (!items.some((candidate) => candidate.siteNo === theatre.siteNo)) items.push(theatre);
+  }
+  const currentTheatre = quickRule()?.theatres?.[0];
+  if (currentTheatre && !items.some((candidate) => candidate.siteNo === currentTheatre.siteNo)) {
+    items.push(currentTheatre);
+  }
+  return items;
+}
+
+function renderPickerRegions() {
+  const container = $("#pickerRegions");
+  container.hidden = state.picker.kind !== "theatre";
+  if (container.hidden) return;
+  container.innerHTML = [
+    { code: "", name: "전체" },
+    ...state.catalog.regions,
+  ].map((region) =>
+    `<button type="button" data-picker-region="${escapeHtml(region.code)}" class="${state.picker.region === region.code ? "active" : ""}" aria-pressed="${state.picker.region === region.code}">${escapeHtml(region.name)}</button>`,
+  ).join("");
+}
+
+function renderPicker() {
+  const query = normalizeText($("#pickerSearch").value);
+  state.picker.filteredItems = state.picker.items.filter((item) => {
+    const regionMatch = state.picker.kind !== "theatre"
+      || !state.picker.region
+      || item.regionCode === state.picker.region;
+    const text = state.picker.kind === "movie"
+      ? `${item.title} ${item.no}`
+      : `${item.name} ${item.siteNo} ${pickerItemDescription(item)}`;
+    return regionMatch && (!query || normalizeText(text).includes(query));
+  });
+  if (state.picker.filteredItems.length === 0) state.picker.activeIndex = -1;
+  else state.picker.activeIndex = Math.min(
+    Math.max(state.picker.activeIndex, 0),
+    state.picker.filteredItems.length - 1,
+  );
+
+  $("#pickerList").setAttribute("aria-multiselectable", String(state.picker.multiple));
+  $("#pickerList").innerHTML = state.picker.filteredItems.map((item, index) => {
+    const selected = pickerSelected(item);
+    const active = index === state.picker.activeIndex;
+    return `<button id="picker-option-${index}" type="button" role="option" tabindex="-1" data-picker-index="${index}" aria-selected="${selected}" class="picker-option ${selected ? "selected" : ""} ${active ? "active" : ""}"><span class="picker-option-mark">${selected ? "✓" : ""}</span><span><strong>${escapeHtml(pickerItemLabel(item))}</strong><small>${escapeHtml(pickerItemDescription(item))}</small></span></button>`;
+  }).join("");
+  const count = state.picker.filteredItems.length;
+  const selectedCount = state.picker.multiple ? state.draftTheatres.size : 0;
+  $("#pickerResultCount").textContent = `${count}개 결과${selectedCount ? ` · ${selectedCount}개 선택` : ""}`;
+  $("#pickerEmpty").hidden = count > 0;
+  const customTitle = $("#pickerSearch").value.trim();
+  const exactMovie = state.catalog.movies.some(
+    (movie) => normalizeText(movie.title) === normalizeText(customTitle),
+  );
+  $("#pickerCustomMovie").hidden = state.picker.kind !== "movie" || !customTitle || exactMovie;
+  $("#pickerCustomMovie").textContent = `“${customTitle}” 제목 그대로 사용`;
+  $("#pickerClear").hidden = !state.picker.multiple || state.draftTheatres.size === 0;
+  $("#pickerDone").hidden = !state.picker.multiple;
+  $("#pickerDone").textContent = `${state.draftTheatres.size}개 극장 선택 완료`;
+
+  if (state.picker.activeIndex >= 0) {
+    $("#pickerSearch").setAttribute("aria-activedescendant", `picker-option-${state.picker.activeIndex}`);
+    requestAnimationFrame(() => $("#picker-option-" + state.picker.activeIndex)?.scrollIntoView({ block: "nearest" }));
+  } else {
+    $("#pickerSearch").removeAttribute("aria-activedescendant");
+  }
+}
+
+function openPicker(context, trigger) {
+  const kind = context.endsWith("movie") ? "movie" : "theatre";
+  const multiple = context === "wizard-theatre";
+  state.picker = {
+    kind,
+    context,
+    multiple,
+    region: "",
+    items: pickerSourceItems(kind),
+    filteredItems: [],
+    activeIndex: 0,
+    trigger,
+  };
+  $("#pickerTitle").textContent = kind === "movie"
+    ? context === "quick-movie" ? "영화 선택" : "감시할 영화 찾기"
+    : multiple ? "극장 여러 곳 선택" : "극장 선택";
+  $("#pickerDescription").textContent = kind === "movie"
+    ? "영화 제목으로 검색하고 목록에 없으면 직접 입력할 수 있습니다."
+    : multiple
+      ? "검색과 지역 필터를 바꿔도 선택한 극장은 그대로 유지됩니다."
+      : "CGV 극장 목록에서 한 곳을 선택해 주세요.";
+  $("#pickerSearch").placeholder = kind === "movie" ? "영화 제목 검색" : "극장 이름 검색";
+  $("#pickerSearch").setAttribute("aria-label", kind === "movie" ? "영화 제목 검색" : "극장 이름 검색");
+  $("#pickerSearch").setAttribute("aria-expanded", "true");
+  trigger.setAttribute("aria-expanded", "true");
+  $("#pickerSearch").value = "";
+  renderPickerRegions();
+  renderPicker();
+  $("#pickerDialog").showModal();
+  requestAnimationFrame(() => $("#pickerSearch").focus());
+}
+
+function closePicker() {
+  if ($("#pickerDialog").open) $("#pickerDialog").close();
+  $("#pickerSearch").setAttribute("aria-expanded", "false");
+  state.picker.trigger?.setAttribute("aria-expanded", "false");
+  state.picker.trigger?.focus();
+}
+
+function selectedTheatreRecord(theatre) {
+  const region = state.catalog.regions.find((item) => item.code === theatre.regionCode);
+  return {
+    name: theatre.name,
+    siteNo: theatre.siteNo,
+    regionCode: theatre.regionCode ?? "",
+    regionName: region?.name ?? theatre.regionName ?? "",
+  };
+}
+
+function choosePickerItem(index) {
+  const item = state.picker.filteredItems[index];
+  if (!item) return;
+  if (state.picker.context === "quick-movie") setQuickMovie(item);
+  else if (state.picker.context === "quick-theatre") setQuickTheatre(item);
+  else if (state.picker.context === "wizard-movie") {
+    setWizardMovie(item);
+    state.dialogDirty = true;
+  } else if (state.draftTheatres.has(item.siteNo)) {
+    state.draftTheatres.delete(item.siteNo);
+    state.dialogDirty = true;
+    renderTheatres();
+    renderPicker();
+    return;
+  } else {
+    state.draftTheatres.set(item.siteNo, selectedTheatreRecord(item));
+    state.dialogDirty = true;
+    renderTheatres();
+    renderPicker();
+    return;
+  }
+  updateQuickPreview();
+  closePicker();
+}
+
+function chooseCustomMovie() {
+  const title = $("#pickerSearch").value.trim();
+  if (!title) return;
+  const movie = { title, no: "" };
+  if (state.picker.context === "quick-movie") setQuickMovie(movie);
+  else {
+    setWizardMovie(movie);
+    state.dialogDirty = true;
+  }
+  updateQuickPreview();
+  closePicker();
 }
 
 function emptyRule() {
@@ -431,15 +601,7 @@ function openRule(index = -1) {
   $("#ruleId").value = rule.id;
   $("#ruleName").value = rule.name;
   $("#ruleEnabled").checked = rule.enabled;
-  $("#movieSelect").value = state.catalog.movies.some(
-    (movie) => movie.no === rule.movieNo,
-  )
-    ? rule.movieNo
-    : "";
-  $("#movieTitle").value = rule.movieTitle;
-  $("#movieNo").value = rule.movieNo;
-  $("#regionSelect").value = "";
-  $("#theatreSearch").value = "";
+  setWizardMovie({ title: rule.movieTitle, no: rule.movieNo });
   $$("#formatOptions input").forEach((input) => {
     input.checked = rule.formats.includes(input.value);
   });
@@ -493,7 +655,7 @@ function validateStep(step, rule = ruleFromForm()) {
   if (step === 2 && rule.theatres.length === 0)
     return {
       message: "극장을 하나 이상 선택해 주세요.",
-      field: $("#theatreSearch"),
+      field: $("#wizardTheatrePicker"),
     };
   if (
     step === 3 &&
@@ -618,21 +780,20 @@ async function saveQuickSetting() {
     return;
   }
   const movieTitle = $("#quickMovie").value.trim();
-  const theatreName = $("#quickTheatre").value.trim();
+  const movieNo = $("#quickMovieNo").value.trim();
+  const theatreSiteNo = $("#quickTheatreSiteNo").value.trim();
   const showDate = digits($("#quickDate").value);
   if (!movieTitle) {
     $("#quickError").textContent = "영화를 선택하거나 제목을 입력해 주세요.";
-    $("#quickMovie").focus();
+    $("#quickMoviePicker").focus();
     return;
   }
-  const catalogTheatre = exactCatalogTheatre(theatreName);
-  const currentTheatre = rule.theatres.find(
-    (theatre) => theatre.name.toLocaleLowerCase("ko-KR") === theatreName.toLocaleLowerCase("ko-KR"),
-  );
+  const catalogTheatre = state.catalog.theatres.find((theatre) => theatre.siteNo === theatreSiteNo);
+  const currentTheatre = rule.theatres.find((theatre) => theatre.siteNo === theatreSiteNo);
   const theatre = catalogTheatre ?? currentTheatre;
   if (!theatre) {
     $("#quickError").textContent = "CGV 목록에서 극장을 선택해 주세요.";
-    $("#quickTheatre").focus();
+    $("#quickTheatrePicker").focus();
     return;
   }
   if (!/^\d{8}$/.test(showDate)) {
@@ -641,16 +802,16 @@ async function saveQuickSetting() {
     return;
   }
 
-  const movie = exactCatalogMovie(movieTitle);
   const regionItem = state.catalog.regions.find((item) => item.code === theatre.regionCode);
   const format = quickFormat();
   const previousRule = structuredClone(rule);
   const { completedAt: _completedAt, completionReason: _completionReason, ...activeRule } = rule;
-  state.config.rules[state.quickRuleIndex] = {
+  const ruleIndex = quickRuleIndex();
+  state.config.rules[ruleIndex] = {
     ...activeRule,
     enabled: true,
     movieTitle,
-    movieNo: movie?.no ?? (movieTitle === rule.movieTitle ? rule.movieNo : ""),
+    movieNo,
     theatres: [{
       name: theatre.name,
       siteNo: theatre.siteNo,
@@ -672,7 +833,7 @@ async function saveQuickSetting() {
     await persistConfig("빠른 설정을 저장하고 감시를 시작했습니다.");
     await loadStatus();
   } catch (error) {
-    state.config.rules[state.quickRuleIndex] = previousRule;
+    state.config.rules[ruleIndex] = previousRule;
     renderRules();
     $("#quickError").textContent = error.message;
   } finally {
@@ -681,8 +842,10 @@ async function saveQuickSetting() {
 }
 
 function applySpiderPreset() {
-  $("#quickMovie").value = "스파이더맨-브랜드 뉴 데이";
-  $("#quickTheatre").value = "용산아이파크몰";
+  setQuickMovie({ title: "스파이더맨-브랜드 뉴 데이", no: "30001192" });
+  const theatre = state.catalog.theatres.find((item) => item.siteNo === "0013")
+    ?? { name: "용산아이파크몰", siteNo: "0013", regionCode: "01", regionName: "서울" };
+  setQuickTheatre(theatre);
   $('input[name="quickFormat"][value="SCREENX"]').checked = true;
   $("#quickError").textContent = "";
   updateQuickPreview();
@@ -864,22 +1027,37 @@ $("#logoutButton").addEventListener("click", async () => {
   await api("/api/logout", { method: "POST" });
   showLogin();
 });
-$("#quickRuleSelect").addEventListener("change", (event) => {
-  state.quickRuleIndex = Number(event.target.value);
+$("#quickRuleTabs").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-quick-rule-id]");
+  if (!button) return;
+  state.quickRuleId = button.dataset.quickRuleId;
   renderQuickSetup();
+});
+$("#quickRuleTabs").addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  const tabs = $$("[data-quick-rule-id]", event.currentTarget);
+  if (tabs.length < 2) return;
+  event.preventDefault();
+  const currentIndex = Math.max(0, tabs.indexOf(document.activeElement));
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? tabs.length - 1
+      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  state.quickRuleId = tabs[nextIndex].dataset.quickRuleId;
+  renderQuickSetup();
+  $(`[data-quick-rule-id="${CSS.escape(state.quickRuleId)}"]`)?.focus();
 });
 $("#quickForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   await saveQuickSetting();
 });
 $("#quickAdvancedButton").addEventListener("click", () =>
-  openRule(state.quickRuleIndex),
+  openRule(quickRuleIndex()),
 );
 $("#quickCreateButton").addEventListener("click", () => openRule());
 $("#spiderPresetButton").addEventListener("click", applySpiderPreset);
-["#quickMovie", "#quickTheatre", "#quickDate"].forEach((selector) =>
-  $(selector).addEventListener("input", updateQuickPreview),
-);
+$("#quickDate").addEventListener("input", updateQuickPreview);
 $$('input[name="quickFormat"]').forEach((input) =>
   input.addEventListener("change", updateQuickPreview),
 );
@@ -888,18 +1066,90 @@ $$('[data-quick-date]').forEach((button) =>
 );
 $("#addRuleButton").addEventListener("click", () => openRule());
 $("#ruleSearch").addEventListener("input", renderRules);
-$("#regionSelect").addEventListener("change", renderTheatres);
-$("#theatreSearch").addEventListener("input", renderTheatres);
 $("#addSpecificDate").addEventListener("click", addSpecificDate);
-$("#movieSelect").addEventListener("change", () => {
-  const movie = state.catalog.movies.find(
-    (item) => item.no === $("#movieSelect").value,
-  );
-  if (movie) {
-    $("#movieTitle").value = movie.title;
-    $("#movieNo").value = movie.no;
-  }
+$("#movieTitle").addEventListener("input", () => {
+  setWizardMovie({ title: $("#movieTitle").value.trim(), no: "" });
   state.dialogDirty = true;
+});
+$$('[data-picker-open]').forEach((button) =>
+  button.addEventListener("click", () => openPicker(button.dataset.pickerOpen, button)),
+);
+$("#pickerClose").addEventListener("click", closePicker);
+$("#pickerDone").addEventListener("click", closePicker);
+$("#pickerCustomMovie").addEventListener("click", chooseCustomMovie);
+$("#pickerClear").addEventListener("click", () => {
+  state.draftTheatres.clear();
+  state.dialogDirty = true;
+  renderTheatres();
+  renderPicker();
+});
+$("#pickerList").addEventListener("click", (event) => {
+  const option = event.target.closest("[data-picker-index]");
+  if (option) choosePickerItem(Number(option.dataset.pickerIndex));
+});
+$("#pickerRegions").addEventListener("click", (event) => {
+  const region = event.target.closest("[data-picker-region]");
+  if (!region) return;
+  state.picker.region = region.dataset.pickerRegion;
+  state.picker.activeIndex = 0;
+  renderPickerRegions();
+  renderPicker();
+});
+$("#pickerSearch").addEventListener("input", () => {
+  state.picker.activeIndex = 0;
+  renderPicker();
+});
+$("#pickerSearch").addEventListener("keydown", (event) => {
+  const lastIndex = state.picker.filteredItems.length - 1;
+  if (lastIndex < 0 && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    return;
+  }
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    state.picker.activeIndex = Math.min(state.picker.activeIndex + 1, lastIndex);
+    renderPicker();
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    state.picker.activeIndex = Math.max(state.picker.activeIndex - 1, 0);
+    renderPicker();
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    state.picker.activeIndex = 0;
+    renderPicker();
+  } else if (event.key === "End") {
+    event.preventDefault();
+    state.picker.activeIndex = lastIndex;
+    renderPicker();
+  } else if (event.key === "Enter" && state.picker.activeIndex >= 0) {
+    event.preventDefault();
+    choosePickerItem(state.picker.activeIndex);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closePicker();
+  }
+});
+$("#pickerDialog").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closePicker();
+});
+$("#pickerDialog").addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const focusable = $$('button:not([disabled]):not([tabindex="-1"]), input:not([disabled]):not([tabindex="-1"])', event.currentTarget)
+    .filter((element) => !element.hidden && element.getClientRects().length > 0);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+$("#pickerDialog").addEventListener("click", (event) => {
+  if (event.target === $("#pickerDialog")) closePicker();
 });
 $$('input[name="dateMode"]').forEach((input) =>
   input.addEventListener("change", updateDateFields),
