@@ -418,7 +418,7 @@ function renderRuleReview(rule) {
     : "모든 상영 형식";
   const theatreLabel = rule.theatres.map((theatre) => theatre.name).join(", ");
   $("#ruleReview").innerHTML = `
-    <div class="review-sentence">영화 <em>${escapeHtml(rule.movieTitle)}</em> · 극장 <em>${escapeHtml(theatreLabel)}</em><br>${escapeHtml(dateText(rule))} 동안 감지합니다.</div>
+    <div class="review-sentence">영화 <em>${escapeHtml(rule.movieTitle)}</em> · 극장 <em>${escapeHtml(theatreLabel)}</em>.<br>${escapeHtml(dateText(rule))} 동안 감지합니다.</div>
     <div class="review-item"><span>극장</span><b>${escapeHtml(theatreLabel)}</b></div>
     <div class="review-item"><span>상영 형식</span><b>${escapeHtml(formatLabel)}</b></div>
     <div class="review-item"><span>날짜</span><b>${escapeHtml(dateText(rule))}</b></div>
