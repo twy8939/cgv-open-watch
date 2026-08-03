@@ -919,7 +919,7 @@ async function loadStatus() {
     $("#systemStatusDetail").textContent = healthy
       ? `Cloudflare ${state.intervalMinutes}분 자동 감지`
       : "자동 감지가 멈춰 있습니다.";
-    $("#systemStatus").style.color = healthy ? "var(--green)" : "var(--amber)";
+    $("#systemStatus").style.color = healthy ? "var(--ink)" : "var(--amber)";
     $("#railStatus").textContent = healthy ? "정상 감지 중" : "전체 일시정지";
     $(".mobile-signal").innerHTML = `<i></i>${state.intervalMinutes}분 감지`;
     $(".rail-status").classList.toggle("paused", !healthy);
@@ -1003,6 +1003,43 @@ function requestCloseDialog() {
   $("#ruleDialog").close();
 }
 
+async function logout() {
+  await api("/api/logout", { method: "POST" });
+  showLogin();
+}
+
+function exportConfig() {
+  const blob = new Blob([JSON.stringify(state.config, null, 2)], {
+    type: "application/json",
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "cgv-open-watch-config.json";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function importConfig(input) {
+  try {
+    const imported = JSON.parse(await input.files[0].text());
+    if (imported?.version !== 3 || !Array.isArray(imported.rules))
+      throw new Error();
+    state.config = imported;
+    renderRules();
+    markDirty();
+    toast("설정을 불러왔습니다. 검토 후 저장해 주세요.");
+  } catch {
+    toast("올바른 CGV Open Watch 설정 파일이 아닙니다.");
+  }
+  input.value = "";
+}
+
+function closeMobileMenu() {
+  if ($("#mobileMenuDialog").open) $("#mobileMenuDialog").close();
+  $("#mobileMenuButton").setAttribute("aria-expanded", "false");
+  $("#mobileMenuButton").focus();
+}
+
 $("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $('#loginForm button[type="submit"]');
@@ -1023,9 +1060,40 @@ $("#loginForm").addEventListener("submit", async (event) => {
   }
 });
 
-$("#logoutButton").addEventListener("click", async () => {
-  await api("/api/logout", { method: "POST" });
-  showLogin();
+$("#logoutButton").addEventListener("click", logout);
+$("#mobileMenuButton").addEventListener("click", () => {
+  $("#mobileMenuButton").setAttribute("aria-expanded", "true");
+  $("#mobileMenuDialog").showModal();
+  requestAnimationFrame(() => $("#mobileMenuClose").focus());
+});
+$("#mobileMenuClose").addEventListener("click", closeMobileMenu);
+$("#mobileMenuDialog").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeMobileMenu();
+});
+$("#mobileMenuDialog").addEventListener("click", (event) => {
+  if (event.target === $("#mobileMenuDialog")) closeMobileMenu();
+});
+$("#mobileMenuDialog").addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const focusable = $$('a[href], button:not([disabled]), input:not([disabled])', event.currentTarget)
+    .filter((element) => !element.hidden && element.getClientRects().length > 0);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+$$('[data-mobile-menu-link]').forEach((link) =>
+  link.addEventListener("click", closeMobileMenu),
+);
+$("#mobileLogoutButton").addEventListener("click", async () => {
+  closeMobileMenu();
+  await logout();
 });
 $("#quickRuleTabs").addEventListener("click", (event) => {
   const button = event.target.closest("[data-quick-rule-id]");
@@ -1260,29 +1328,15 @@ $("#catalogButton").addEventListener("click", () =>
   ),
 );
 $("#refreshStatusButton").addEventListener("click", loadStatus);
-$("#exportButton").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state.config, null, 2)], {
-    type: "application/json",
-  });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "cgv-open-watch-config.json";
-  link.click();
-  URL.revokeObjectURL(link.href);
+$("#exportButton").addEventListener("click", exportConfig);
+$("#mobileExportButton").addEventListener("click", () => {
+  exportConfig();
+  closeMobileMenu();
 });
-$("#importInput").addEventListener("change", async (event) => {
-  try {
-    const imported = JSON.parse(await event.target.files[0].text());
-    if (imported?.version !== 3 || !Array.isArray(imported.rules))
-      throw new Error();
-    state.config = imported;
-    renderRules();
-    markDirty();
-    toast("설정을 불러왔습니다. 검토 후 저장해 주세요.");
-  } catch {
-    toast("올바른 CGV Open Watch 설정 파일이 아닙니다.");
-  }
-  event.target.value = "";
+$("#importInput").addEventListener("change", (event) => importConfig(event.target));
+$("#mobileImportInput").addEventListener("change", async (event) => {
+  await importConfig(event.target);
+  closeMobileMenu();
 });
 
 window.addEventListener("beforeunload", (event) => {

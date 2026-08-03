@@ -8,6 +8,9 @@ test("관리 화면 선택 UI가 공통 Picker 계약을 유지한다", async ()
   const html = await readFile(new URL("index.html", publicUrl), "utf8");
 
   assert.doesNotMatch(html, /<(?:select|datalist)\b/i);
+  assert.match(html, /<meta name="theme-color" content="#ffffff"/);
+  assert.match(html, /id="mobileMenuDialog"[^>]+aria-labelledby="mobileMenuTitle"/);
+  assert.match(html, /id="mobileImportInput"[^>]+type="file"/);
   assert.match(html, /id="pickerDialog"[^>]+aria-labelledby="pickerTitle"[^>]+aria-describedby="pickerDescription"/);
   assert.match(html, /id="pickerSearch"[^>]+role="combobox"[^>]+aria-controls="pickerList"/);
   assert.match(html, /id="pickerList"[^>]+role="listbox"/);
@@ -22,8 +25,19 @@ test("관리 화면 선택 UI가 공통 Picker 계약을 유지한다", async ()
   }
 });
 
+test("관리 화면이 Airbnb 기반 소비자 디자인 토큰을 사용한다", async () => {
+  const css = await readFile(new URL("styles-20260803-11.css", publicUrl), "utf8");
+
+  assert.match(css, /--brand: #ff385c/);
+  assert.match(css, /--paper: #ffffff/);
+  assert.match(css, /--radius: 14px/);
+  assert.match(css, /\.side-rail \{[\s\S]*background: rgba\(255, 255, 255, 0\.96\)/);
+  assert.match(css, /\.quick-form \{[\s\S]*border-radius: 32px/);
+  assert.match(css, /\.mobile-menu-dialog \{/);
+});
+
 test("Picker가 표시 이름 대신 CGV 식별자를 저장한다", async () => {
-  const script = await readFile(new URL("app-20260803-10.js", publicUrl), "utf8");
+  const script = await readFile(new URL("app-20260803-11.js", publicUrl), "utf8");
 
   assert.match(script, /quickMovieNo/);
   assert.match(script, /quickTheatreSiteNo/);
@@ -31,4 +45,7 @@ test("Picker가 표시 이름 대신 CGV 식별자를 저장한다", async () =>
   assert.match(script, /state\.draftTheatres\.set\(item\.siteNo/);
   assert.match(script, /event\.key !== "Tab"/);
   assert.match(script, /aria-activedescendant/);
+  assert.match(script, /function closeMobileMenu\(\)/);
+  assert.match(script, /mobileLogoutButton/);
+  assert.match(script, /mobileImportInput/);
 });

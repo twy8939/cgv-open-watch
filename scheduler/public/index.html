@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#171717" />
+    <meta name="theme-color" content="#ffffff" />
     <title>CGV Open Watch</title>
-    <link rel="stylesheet" href="/styles-20260803-10.css" />
-    <script src="/app-20260803-10.js" type="module"></script>
+    <link rel="stylesheet" href="/styles-20260803-11.css" />
+    <script src="/app-20260803-11.js" type="module"></script>
   </head>
   <body>
     <section id="loginView" class="login-view" hidden>
@@ -71,7 +71,10 @@
           <a class="mobile-brand" href="#overview"
             ><b>CGV</b><span>OPEN WATCH</span></a
           >
-          <div class="mobile-signal"><i></i>5분 감지</div>
+          <div class="mobile-header-actions">
+            <div class="mobile-signal"><i></i>5분 감지</div>
+            <button id="mobileMenuButton" type="button" class="mobile-menu-button" aria-label="관리 메뉴 열기" aria-haspopup="dialog" aria-expanded="false">•••</button>
+          </div>
         </header>
 
         <main>
@@ -284,6 +287,26 @@
         </main>
       </div>
     </div>
+
+    <dialog id="mobileMenuDialog" class="mobile-menu-dialog" aria-labelledby="mobileMenuTitle">
+      <div class="mobile-menu-sheet">
+        <div class="picker-handle" aria-hidden="true"></div>
+        <header>
+          <div><p class="kicker">MENU</p><h2 id="mobileMenuTitle">관리 메뉴</h2></div>
+          <button id="mobileMenuClose" type="button" class="close-button" aria-label="관리 메뉴 닫기">×</button>
+        </header>
+        <nav class="mobile-menu-nav" aria-label="모바일 관리 메뉴">
+          <a href="#quick" data-mobile-menu-link><span>빠른 설정</span><i aria-hidden="true">›</i></a>
+          <a href="#rules" data-mobile-menu-link><span>전체 규칙</span><i aria-hidden="true">›</i></a>
+          <a href="#activity" data-mobile-menu-link><span>실행 기록</span><i aria-hidden="true">›</i></a>
+        </nav>
+        <div class="mobile-menu-actions">
+          <button id="mobileExportButton" type="button">설정 내보내기</button>
+          <label class="file-button">설정 가져오기<input id="mobileImportInput" type="file" accept="application/json" /></label>
+          <button id="mobileLogoutButton" type="button" class="mobile-logout">로그아웃</button>
+        </div>
+      </div>
+    </dialog>
 
     <dialog id="ruleDialog" class="rule-dialog">
       <form id="ruleForm" method="dialog" novalidate>
