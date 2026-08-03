@@ -23,7 +23,7 @@ test("관리 화면 선택 UI가 공통 Picker 계약을 유지한다", async ()
 });
 
 test("Picker가 표시 이름 대신 CGV 식별자를 저장한다", async () => {
-  const script = await readFile(new URL("app.js", publicUrl), "utf8");
+  const script = await readFile(new URL("app-20260803-10.js", publicUrl), "utf8");
 
   assert.match(script, /quickMovieNo/);
   assert.match(script, /quickTheatreSiteNo/);
