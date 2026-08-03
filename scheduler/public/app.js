@@ -10,6 +10,7 @@ const state = {
   draftTheatres: new Map(),
   draftDates: new Set(),
   dirty: false,
+  intervalMinutes: 5,
 };
 
 async function api(path, options = {}) {
@@ -141,7 +142,7 @@ function renderRules() {
   $("#pauseToggle").checked = state.config.paused === true;
 
   if (state.config.rules.length === 0) {
-    list.innerHTML = `<div class="empty-state"><div><span class="empty-icon">＋</span><h3>첫 감시 규칙을 만들어 보세요.</h3><p>영화와 극장만 선택해도 5분마다 예매 오픈을 확인합니다.</p><button class="button button-primary" data-empty-add>첫 규칙 만들기</button></div></div>`;
+    list.innerHTML = `<div class="empty-state"><div><span class="empty-icon">＋</span><h3>첫 감시 규칙을 만들어 보세요.</h3><p>평소에는 5분마다, 선택한 날짜 5일 전부터는 2분마다 예매 오픈을 확인합니다.</p><button class="button button-primary" data-empty-add>첫 규칙 만들기</button></div></div>`;
     $("[data-empty-add]")?.addEventListener("click", () => openRule());
     return;
   }
@@ -165,7 +166,7 @@ function renderRules() {
       <div class="rule-main"><small>${escapeHtml(rule.name)}</small><strong>${escapeHtml(rule.movieTitle)}</strong><div class="format-tags">${formatTags}</div></div>
       <div class="rule-detail"><small>극장</small><b>${escapeHtml(rule.theatres.map((theatre) => theatre.name).join(", "))}</b><small>${rule.theatres.length}개 극장</small></div>
       <div class="rule-detail"><small>날짜 · 시간</small><b>${escapeHtml(dateText(rule))}</b><small>${displayTime(rule.startTime)}–${displayTime(rule.endTime)} · ${rule.minSeats}석 이상</small></div>
-      <div class="rule-actions"><label class="rule-toggle-label"><input type="checkbox" role="switch" data-toggle-index="${index}" ${rule.enabled ? "checked" : ""} /><span>${rule.enabled ? "감지 중" : "꺼짐"}</span></label><button class="edit-rule" data-edit-index="${index}">편집</button></div>
+      <div class="rule-actions"><label class="rule-toggle-label"><input type="checkbox" role="switch" data-toggle-index="${index}" ${rule.enabled ? "checked" : ""} /><span>${rule.enabled ? "감지 중" : "꺼짐"}</span></label>${rule.enabled ? `<button class="complete-rule" data-complete-index="${index}">예매 완료</button>` : ""}<button class="edit-rule" data-edit-index="${index}">편집</button></div>
     </article>`;
     })
     .join("");
@@ -178,6 +179,11 @@ function renderRules() {
   $$("[data-toggle-index]").forEach((input) =>
     input.addEventListener("change", () =>
       toggleRule(Number(input.dataset.toggleIndex), input.checked),
+    ),
+  );
+  $$("[data-complete-index]").forEach((button) =>
+    button.addEventListener("click", () =>
+      completeRule(Number(button.dataset.completeIndex)),
     ),
   );
 }
@@ -496,6 +502,23 @@ async function toggleRule(index, enabled) {
   }
 }
 
+async function completeRule(index) {
+  if (!confirm("예매를 마쳤나요? 이 규칙의 자동 감시를 종료합니다.")) return;
+  const previousRule = structuredClone(state.config.rules[index]);
+  state.config.rules[index].enabled = false;
+  state.config.rules[index].completedAt = new Date().toISOString();
+  state.config.rules[index].completionReason = "booked";
+  renderRules();
+  try {
+    await persistConfig("예매 완료로 표시하고 감시를 종료했습니다.");
+    await loadStatus();
+  } catch (error) {
+    state.config.rules[index] = previousRule;
+    renderRules();
+    toast(error.message);
+  }
+}
+
 function renderLoading() {
   $("#ruleList").innerHTML =
     '<div class="skeleton"></div><div class="skeleton"></div>';
@@ -529,11 +552,18 @@ async function loadStatus() {
   try {
     const status = await api("/api/status");
     const healthy = !status.paused;
-    $("#systemStatus").textContent = healthy ? "정상 감지" : "일시정지";
+    state.intervalMinutes = status.intervalMinutes ?? 5;
+    $("#systemStatus").textContent = healthy
+      ? state.intervalMinutes === 2 ? "2분 집중 감지" : "5분 정상 감지"
+      : "일시정지";
+    $("#systemStatusDetail").textContent = healthy
+      ? `Cloudflare ${state.intervalMinutes}분 자동 감지`
+      : "자동 감지가 멈춰 있습니다.";
     $("#systemStatus").style.color = healthy ? "var(--green)" : "var(--amber)";
     $("#railStatus").textContent = healthy ? "정상 감지 중" : "전체 일시정지";
     $(".rail-status").classList.toggle("paused", !healthy);
     $("#activeRuleCount").textContent = `${status.activeRules}개`;
+    renderClock();
     const latest = status.runs[0];
     $("#lastResult").textContent = latest ? resultLabel(latest) : "기록 없음";
     $("#lastResultTime").textContent = latest
@@ -567,15 +597,20 @@ async function loadStatus() {
 
 function renderClock() {
   const now = new Date();
-  const active = Math.floor(now.getMinutes() / 5);
+  const interval = state.intervalMinutes;
+  const segments = 60 / interval;
+  const active = Math.floor(now.getMinutes() / interval);
+  $("#signalIntervalTitle").textContent = `${interval}분 신호선`;
+  $("#signalClock").style.setProperty("--segments", segments);
+  $("#signalClock").setAttribute("aria-label", `시간당 ${interval}분 감지 구간`);
   $("#signalClock").innerHTML = Array.from(
-    { length: 12 },
+    { length: segments },
     (_, index) =>
-      `<span class="${index === active ? "active" : ""}" data-minute="${String(index * 5).padStart(2, "0")}"></span>`,
+      `<span class="${index === active ? "active" : ""}" data-minute="${index % Math.max(1, Math.round(10 / interval)) === 0 ? String(index * interval).padStart(2, "0") : ""}"></span>`,
   ).join("");
   const next = new Date(now);
   next.setSeconds(0, 0);
-  next.setMinutes((Math.floor(now.getMinutes() / 5) + 1) * 5);
+  next.setMinutes((Math.floor(now.getMinutes() / interval) + 1) * interval);
   $("#nextRun").textContent = next.toLocaleTimeString("ko-KR", {
     hour: "2-digit",
     minute: "2-digit",

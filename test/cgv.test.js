@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapApiSchedule, toKstShowTime } from "../src/cgv.js";
+import { mapApiSchedule, selectScheduleDates, toKstShowTime } from "../src/cgv.js";
 
 const theatre = { name: "용산아이파크몰", siteNo: "0013" };
 const raw = {
@@ -49,4 +49,32 @@ test("CGV SCREENX 필드와 좌석 수를 변환한다", () => {
   assert.match(schedule.formatName, /SCREENX/);
   assert.equal(schedule.remainingSeats, 120);
   assert.equal(schedule.bookingClosed, false);
+});
+
+test("특정 날짜 규칙은 CGV 날짜 목록에서 지정 날짜만 조회한다", () => {
+  const rows = ["20260803", "20260810", "20260815", "20260816"].map((scnYmd) => ({ scnYmd }));
+  assert.deepEqual(selectScheduleDates(rows, {
+    dateMode: "specific",
+    specificDates: ["20260815"],
+    lookAheadDays: 31,
+  }), ["20260815"]);
+});
+
+test("특정 날짜가 아직 열리지 않았으면 상영 일정 조회를 생략한다", () => {
+  const rows = ["20260803", "20260810"].map((scnYmd) => ({ scnYmd }));
+  assert.deepEqual(selectScheduleDates(rows, {
+    dateMode: "specific",
+    specificDates: ["20260815"],
+    lookAheadDays: 31,
+  }), []);
+});
+
+test("기간 규칙은 기간 안의 날짜만 조회한다", () => {
+  const rows = ["20260809", "20260810", "20260815", "20260816"].map((scnYmd) => ({ scnYmd }));
+  assert.deepEqual(selectScheduleDates(rows, {
+    dateMode: "range",
+    startDate: "20260810",
+    endDate: "20260815",
+    lookAheadDays: 31,
+  }), ["20260810", "20260815"]);
 });

@@ -525,7 +525,7 @@ main {
 }
 .signal-clock {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(var(--segments, 12), 1fr);
   gap: 4px;
 }
 .signal-clock span {
@@ -728,7 +728,8 @@ input[role="switch"]:checked::after {
   font-weight: 750;
   cursor: pointer;
 }
-.edit-rule {
+.edit-rule,
+.complete-rule {
   width: 100%;
   min-height: 34px;
   color: var(--ink);
@@ -737,6 +738,11 @@ input[role="switch"]:checked::after {
   border-radius: 5px;
   font-size: 12px;
   font-weight: 750;
+}
+.complete-rule {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: transparent;
 }
 .empty-state {
   min-height: 260px;

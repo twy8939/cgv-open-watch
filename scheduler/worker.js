@@ -3,6 +3,10 @@ const DISPATCH_TIMEOUT_MS = 15_000;
 const SESSION_MAX_AGE = 60 * 60 * 12;
 const MAX_ACTIVE_TARGETS = 12;
 const MAX_RULES = 25;
+const BASE_CRON = "*/5 * * * *";
+const BOOST_CRON = "*/2 * * * *";
+const BOOST_DAYS_BEFORE = 5;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export class WorkflowDispatchError extends Error {
   constructor(status, detail) {
@@ -99,6 +103,75 @@ async function setSetting(env, key, value) {
 async function audit(env, action, summary, detail = null) {
   await env.DB.prepare("INSERT INTO audit_log (action, summary, detail_json) VALUES (?, ?, ?)")
     .bind(action, summary, detail == null ? null : JSON.stringify(detail)).run();
+}
+
+function kstDate(timestamp) {
+  return new Date(timestamp + 9 * 60 * 60 * 1_000).toISOString().slice(0, 10).replaceAll("-", "");
+}
+
+function dateOrdinal(value) {
+  if (!/^\d{8}$/.test(String(value ?? ""))) return null;
+  return Date.UTC(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, Number(value.slice(6, 8))) / DAY_MS;
+}
+
+function ruleEndDate(rule) {
+  if (rule?.dateMode === "specific") return [...(rule.specificDates ?? [])].sort().at(-1) ?? null;
+  if (rule?.dateMode === "range") return rule.endDate ?? null;
+  return null;
+}
+
+function ruleBoostDate(rule) {
+  if (rule?.dateMode === "specific") return [...(rule.specificDates ?? [])].sort()[0] ?? null;
+  if (rule?.dateMode === "range") return rule.startDate ?? null;
+  return null;
+}
+
+export function createMonitoringPlan(config, scheduledTime = Date.now()) {
+  const today = kstDate(scheduledTime);
+  const todayOrdinal = dateOrdinal(today);
+  const enabledRules = (config?.rules ?? []).filter((rule) => rule.enabled !== false);
+  const expiredRules = enabledRules.filter((rule) => {
+    const endDate = ruleEndDate(rule);
+    return endDate != null && endDate < today;
+  });
+  const activeRules = enabledRules.filter((rule) => !expiredRules.includes(rule));
+  const boostDates = activeRules.map(ruleBoostDate).filter(Boolean).sort();
+  const boosted = boostDates.some((date) => {
+    const daysUntil = dateOrdinal(date) - todayOrdinal;
+    return daysUntil <= BOOST_DAYS_BEFORE;
+  });
+  const nextBoostTarget = boostDates.find((date) => dateOrdinal(date) - todayOrdinal > BOOST_DAYS_BEFORE);
+  const nextBoostDate = nextBoostTarget == null
+    ? null
+    : kstDate((dateOrdinal(nextBoostTarget) - BOOST_DAYS_BEFORE) * DAY_MS - 9 * 60 * 60 * 1_000);
+
+  return {
+    today,
+    intervalMinutes: boosted ? 2 : 5,
+    cron: boosted ? BOOST_CRON : BASE_CRON,
+    nextBoostDate,
+    activeRules,
+    expiredRules,
+    config: { ...config, rules: activeRules },
+  };
+}
+
+async function expireRules(env, config, expiredRules, now) {
+  if (expiredRules.length === 0) return config;
+  const expiredIds = new Set(expiredRules.map((rule) => rule.id));
+  const saved = {
+    ...config,
+    revision: Number(config.revision ?? 0) + 1,
+    updatedAt: new Date(now).toISOString(),
+    rules: config.rules.map((rule) => expiredIds.has(rule.id)
+      ? { ...rule, enabled: false, completedAt: new Date(now).toISOString(), completionReason: "expired" }
+      : rule),
+  };
+  await setSetting(env, "watch_config", saved);
+  await audit(env, "rules-expired", `지난 날짜 감시 규칙 ${expiredRules.length}개 자동 종료`, {
+    ruleIds: [...expiredIds],
+  });
+  return saved;
 }
 
 function validateConfig(input) {
@@ -227,8 +300,10 @@ async function apiHandler(request, env) {
     const body = await request.json();
     const config = await getSetting(env, "watch_config", null);
     if (!config && body.mode === "scan") return json({ error: "먼저 감시 규칙을 저장해 주세요." }, 409);
+    const plan = config ? createMonitoringPlan(config) : null;
+    if (body.mode === "scan" && plan.activeRules.length === 0) return json({ error: "현재 감지할 규칙이 없습니다." }, 409);
     const result = await dispatchWatchWorkflow(env, Date.now(), {
-      config: body.mode === "scan" ? config : undefined,
+      config: body.mode === "scan" ? plan.config : undefined,
       notifyExisting: body.notifyExisting === true,
       testNotification: body.mode === "test",
       syncCatalog: body.mode === "catalog",
@@ -242,9 +317,13 @@ async function apiHandler(request, env) {
       githubJson(env, `/actions/workflows/${env.GITHUB_WORKFLOW}/runs?per_page=10`),
       getSetting(env, "watch_config", { paused: false, rules: [] }),
     ]);
+    const plan = createMonitoringPlan(config);
     return json({
       paused: config.paused === true,
-      activeRules: config.rules.filter((rule) => rule.enabled !== false).length,
+      activeRules: plan.activeRules.length,
+      expiredRules: plan.expiredRules.length,
+      intervalMinutes: plan.intervalMinutes,
+      nextBoostDate: plan.nextBoostDate,
       runs: runs.workflow_runs.map((run) => ({ id: run.id, status: run.status, conclusion: run.conclusion, event: run.event, createdAt: run.created_at, updatedAt: run.updated_at, url: run.html_url })),
     });
   }
@@ -280,12 +359,25 @@ export default {
   },
   async scheduled(controller, env, _ctx, options = {}) {
     try {
-      const config = await getSetting(env, "watch_config", null);
+      let config = await getSetting(env, "watch_config", null);
       if (!config || config.paused === true || config.rules.every((rule) => rule.enabled === false)) {
         console.log(JSON.stringify({ event: "workflow-skipped", reason: !config ? "no-config" : "paused" }));
         return;
       }
-      const dispatched = await dispatchWatchWorkflow(env, controller.scheduledTime, { ...options, config });
+      let plan = createMonitoringPlan(config, controller.scheduledTime);
+      if (plan.expiredRules.length > 0) {
+        config = await expireRules(env, config, plan.expiredRules, controller.scheduledTime);
+        plan = createMonitoringPlan(config, controller.scheduledTime);
+      }
+      if (plan.activeRules.length === 0) {
+        console.log(JSON.stringify({ event: "workflow-skipped", reason: "no-active-rules" }));
+        return;
+      }
+      if (controller.cron !== plan.cron) {
+        console.log(JSON.stringify({ event: "workflow-skipped", reason: "inactive-frequency", cron: controller.cron, activeCron: plan.cron }));
+        return;
+      }
+      const dispatched = await dispatchWatchWorkflow(env, controller.scheduledTime, { ...options, config: plan.config });
       console.log(JSON.stringify({ event: "workflow-dispatched", scheduledTime: controller.scheduledTime, cron: controller.cron, status: dispatched.status, workflowRunId: dispatched.result?.workflow_run_id ?? null }));
     } catch (error) {
       if (error instanceof WorkflowDispatchError && [400, 401, 403, 404, 422].includes(error.status)) controller.noRetry();

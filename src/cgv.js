@@ -75,8 +75,23 @@ function mapApiSchedule(item, theatre, now = new Date()) {
   };
 }
 
+function selectScheduleDates(dateRows, config) {
+  const availableDates = dateRows
+    .map((row) => String(row?.scnYmd ?? ""))
+    .filter((value) => /^\d{8}$/.test(value));
+
+  if (config.dateMode === "specific") {
+    const targets = new Set(config.specificDates ?? []);
+    return availableDates.filter((date) => targets.has(date));
+  }
+  if (config.dateMode === "range") {
+    return availableDates.filter((date) => date >= config.startDate && date <= config.endDate);
+  }
+  return availableDates.slice(0, config.lookAheadDays);
+}
+
 async function fetchTheatreSchedules(page, theatre, config) {
-  const result = await page.evaluate(async ({ siteNo, lookAheadDays: maxDays, movieNo }) => {
+  const result = await page.evaluate(async ({ siteNo, movieNo, dateMode, lookAheadDays, startDate, endDate, specificDates }) => {
     const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
     const getJson = async (url) => {
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -120,10 +135,18 @@ async function fetchTheatreSchedules(page, theatre, config) {
       ? "/api/v1/booking/searchSiteScnscYmdListByMov"
       : "/api/v1/booking/searchSiteScnscYmdListBySite";
     const dateRows = await getJson(`${dateEndpoint}?${dateQuery}`);
-    const dates = dateRows
-      .map((row) => row.scnYmd)
-      .filter((value) => /^\d{8}$/.test(value))
-      .slice(0, maxDays);
+    const availableDates = dateRows
+      .map((row) => String(row?.scnYmd ?? ""))
+      .filter((value) => /^\d{8}$/.test(value));
+    let dates;
+    if (dateMode === "specific") {
+      const targets = new Set(specificDates);
+      dates = availableDates.filter((date) => targets.has(date));
+    } else if (dateMode === "range") {
+      dates = availableDates.filter((date) => date >= startDate && date <= endDate);
+    } else {
+      dates = availableDates.slice(0, lookAheadDays);
+    }
 
     const schedules = [];
     for (const showDate of dates) {
@@ -152,6 +175,10 @@ async function fetchTheatreSchedules(page, theatre, config) {
     siteNo: theatre.siteNo,
     lookAheadDays: config.lookAheadDays,
     movieNo: config.movieNo ?? "",
+    dateMode: config.dateMode ?? "rolling",
+    startDate: config.startDate ?? "",
+    endDate: config.endDate ?? "",
+    specificDates: config.specificDates ?? [],
   });
 
   if (!Array.isArray(result)) {
@@ -213,7 +240,12 @@ export async function collectCgvSchedulesForRules(rules, options = {}) {
   const seen = new Set();
   for (const rule of rules) {
     for (const theatre of rule.theatres) {
-      const key = `${theatre.siteNo}:${rule.movieNo}:${rule.lookAheadDays}`;
+      const dateSelection = rule.dateMode === "specific"
+        ? (rule.specificDates ?? []).join(",")
+        : rule.dateMode === "range"
+          ? `${rule.startDate}-${rule.endDate}`
+          : String(rule.lookAheadDays);
+      const key = `${theatre.siteNo}:${rule.movieNo}:${rule.dateMode}:${dateSelection}`;
       if (seen.has(key)) continue;
       seen.add(key);
       requests.push({
@@ -222,6 +254,10 @@ export async function collectCgvSchedulesForRules(rules, options = {}) {
         formats: [],
         theatres: [theatre],
         lookAheadDays: rule.dateMode === "rolling" ? rule.lookAheadDays : 31,
+        dateMode: rule.dateMode,
+        startDate: rule.startDate,
+        endDate: rule.endDate,
+        specificDates: rule.specificDates,
       });
     }
   }
@@ -323,4 +359,4 @@ export async function collectCgvCatalog(options = {}) {
   }
 }
 
-export { mapApiSchedule, toKstShowTime };
+export { mapApiSchedule, selectScheduleDates, toKstShowTime };

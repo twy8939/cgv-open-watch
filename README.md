@@ -4,9 +4,10 @@ CGV 공개 예매 화면에서 지정한 영화의 새 회차가 열리면 Disco
 
 ## 운영 방식
 
-- Cloudflare Cron이 매 5분마다 GitHub Actions 감시 작업을 호출합니다. 하루 288회입니다.
-- 실제 CGV 조회는 GitHub Actions의 Chrome이 담당하고, Cloudflare는 설정과 5분 호출만 담당합니다.
+- Cloudflare Cron이 평소에는 5분마다 GitHub Actions 감시 작업을 호출합니다. 특정 상영일 5일 전부터는 자동으로 2분 간격으로 전환합니다.
+- 실제 CGV 조회는 GitHub Actions의 Chrome이 담당하고, Cloudflare는 설정과 자동 호출만 담당합니다.
 - CGV 지점 공개 화면을 Chrome으로 열고, 화면이 사용하는 공식 읽기 전용 일정 응답을 확인합니다.
+- 특정 날짜 규칙은 CGV 날짜 목록을 먼저 확인하고 지정 날짜가 나타났을 때 그 날짜의 일정만 조회합니다.
 - 로그인, CAPTCHA, 유료 기능, 접근 제한을 우회하지 않습니다.
 - 발견한 회차와 아직 보내지 못한 알림은 `state/notifications.json`에 저장해 재시작 후에도 이어서 처리합니다.
 - 같은 날짜에 함께 열린 회차는 Discord 글자 제한 안에서 묶어 알림 폭주를 줄입니다.
@@ -40,6 +41,7 @@ Discord 연결만 다시 확인하려면 관리 사이트의 `Discord 테스트`
 - 오늘부터 N일, 기간 범위, 특정 날짜 지정
 - 상영 시간대와 최소 잔여 좌석 설정
 - 전체 일시정지, 즉시 감지, Discord 테스트, CGV 목록 갱신
+- 예매 완료 버튼으로 개별 감시 종료, 지난 특정 날짜 규칙 자동 종료
 - 최근 GitHub Actions 실행 결과, 설정 가져오기와 내보내기
 
 설정은 Cloudflare D1에 보관되며 GitHub 토큰과 관리 비밀번호는 Worker Secret에만 저장됩니다. 관리 비밀번호를 바꾸려면 다음 명령을 실행합니다.
@@ -48,9 +50,9 @@ Discord 연결만 다시 확인하려면 관리 사이트의 `Discord 테스트`
 npx --yes wrangler@4.118.0 secret put ADMIN_PASSWORD --config scheduler/wrangler.jsonc
 ```
 
-## 5분 외부 스케줄러 설정
+## 적응형 외부 스케줄러 설정
 
-GitHub의 `schedule`은 5분 cron을 설정해도 지연되거나 일부 실행이 누락될 수 있습니다. 이 저장소는 `scheduler/`의 Cloudflare Worker가 매 5분마다 `workflow_dispatch`를 호출하는 방식을 기본 경로로 사용합니다.
+GitHub의 `schedule`은 5분 cron을 설정해도 지연되거나 일부 실행이 누락될 수 있습니다. 이 저장소는 `scheduler/`의 Cloudflare Worker가 평소 5분, 특정 상영일 5일 전부터 2분마다 `workflow_dispatch`를 호출하는 방식을 기본 경로로 사용합니다.
 
 1. [Cloudflare 대시보드](https://dash.cloudflare.com/)에 무료 계정으로 로그인합니다.
 2. 로컬에서 `npx --yes wrangler@4.118.0 login`을 실행하고 브라우저 승인을 완료합니다.
@@ -58,9 +60,9 @@ GitHub의 `schedule`은 5분 cron을 설정해도 지연되거나 일부 실행�
 4. `npm run scheduler:secret`을 실행해 토큰을 `GITHUB_TOKEN` Secret으로 저장합니다. 토큰은 파일이나 GitHub 저장소에 넣지 않습니다.
 5. D1 데이터베이스와 `ADMIN_PASSWORD`, `SESSION_SECRET` Worker Secret을 설정합니다.
 6. `npm run scheduler:deploy`로 배포합니다.
-7. 최대 15분의 전파 시간 후 GitHub Actions에서 `cloudflare-cron` 호출이 5분 간격으로 생성되는지 연속 3회 확인합니다.
+7. 최대 15분의 전파 시간 후 GitHub Actions에서 `cloudflare-cron` 호출이 현재 표시된 간격으로 생성되는지 연속 3회 확인합니다.
 
-Cloudflare Worker 무료 플랜은 하루 100,000회 요청을 포함하므로 하루 288회의 이 호출기는 무료 범위에 들어갑니다. GitHub 토큰은 외부 호출기가 이 저장소의 감시 워크플로만 시작하는 용도이며, Discord Webhook은 계속 GitHub Secret에만 보관됩니다.
+두 Cron은 합쳐 하루 1,008회 Worker를 깨우지만 현재 날짜에 맞는 하나만 GitHub Actions를 호출합니다. 실제 감시 작업은 5분 모드 하루 288회, 2분 모드 하루 720회입니다. Cloudflare Worker 무료 플랜의 하루 100,000회 요청 범위 안이며, GitHub 토큰은 외부 호출기가 이 저장소의 감시 워크플로만 시작하는 용도입니다. Discord Webhook은 계속 GitHub Secret에만 보관됩니다.
 
 ## 로컬 점검
 
@@ -108,7 +110,7 @@ Chrome을 기본 경로에서 찾지 못하면 `CHROME_PATH`를 지정합니다.
 ## 주의사항
 
 - 표준 실행기를 쓰는 공개 GitHub 저장소는 Actions 사용료가 없습니다. 비공개 저장소는 5분 주기라면 무료 제공량을 넘길 가능성이 큽니다.
-- Cloudflare는 5분마다 호출하지만 전파 지연, GitHub 실행 대기, CGV 응답 지연 때문에 알림 도착을 절대적으로 5분 이내라고 보장할 수는 없습니다. 실행 요약의 `트리거 지연`으로 실제 상태를 확인합니다.
+- 설정된 주기는 평소 5분, 목표 날짜 5일 전부터 2분이지만 전파 지연, GitHub 실행 대기, CGV 응답 지연 때문에 알림 도착 시간을 절대적으로 보장할 수는 없습니다. 실행 요약의 `트리거 지연`으로 실제 상태를 확인합니다.
 - CGV가 화면이나 응답 구조를 바꾸면 실패할 수 있으며, 이 경우 오탐을 보내지 않고 Actions를 실패 처리합니다.
 - Discord 오류나 실행 중단으로 보내지 못한 회차는 Git에 남은 대기열을 이용해 다음 실행에서 재시도합니다.
 - Discord 전송 성공 직후 완료 상태 커밋 전에 실행기가 강제 종료되는 극히 짧은 구간에는 같은 알림이 한 번 더 갈 수 있습니다. Discord Webhook과 Git 사이에 원자적 트랜잭션이 없어 이 구간을 완전히 없앨 수는 없습니다.

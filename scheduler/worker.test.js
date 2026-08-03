@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, {
+  createMonitoringPlan,
   dispatchWatchWorkflow,
   WorkflowDispatchError,
 } from "./worker.js";
@@ -68,4 +69,46 @@ test("권한 오류는 즉시 재시도를 막고 실패로 기록한다", async
     WorkflowDispatchError,
   );
   assert.equal(noRetryCalled, true);
+});
+
+test("특정 상영일 5일 전부터 2분 감시로 전환한다", () => {
+  const config = {
+    version: 3,
+    paused: false,
+    rules: [{ id: "august-15", enabled: true, dateMode: "specific", specificDates: ["20260815"] }],
+  };
+  const baseline = createMonitoringPlan(config, Date.parse("2026-08-09T14:59:59Z"));
+  const boosted = createMonitoringPlan(config, Date.parse("2026-08-09T15:00:00Z"));
+  assert.equal(baseline.today, "20260809");
+  assert.equal(baseline.intervalMinutes, 5);
+  assert.equal(baseline.nextBoostDate, "20260810");
+  assert.equal(boosted.today, "20260810");
+  assert.equal(boosted.intervalMinutes, 2);
+});
+
+test("특정 상영일이 지나면 감시 대상에서 자동 제외한다", () => {
+  const config = {
+    version: 3,
+    paused: false,
+    rules: [{ id: "august-15", enabled: true, dateMode: "specific", specificDates: ["20260815"] }],
+  };
+  const plan = createMonitoringPlan(config, Date.parse("2026-08-15T15:00:00Z"));
+  assert.equal(plan.today, "20260816");
+  assert.equal(plan.activeRules.length, 0);
+  assert.deepEqual(plan.expiredRules.map((rule) => rule.id), ["august-15"]);
+});
+
+test("기본 기간에는 2분 Cron을 건너뛰고 5분 Cron만 실행한다", async () => {
+  let dispatchCount = 0;
+  await worker.scheduled({
+    scheduledTime: Date.parse("2026-08-03T01:30:00Z"),
+    cron: "*/2 * * * *",
+    noRetry: () => {},
+  }, env, { waitUntil: () => {} }, {
+    fetchImpl: async () => {
+      dispatchCount += 1;
+      return new Response(null, { status: 204 });
+    },
+  });
+  assert.equal(dispatchCount, 0);
 });

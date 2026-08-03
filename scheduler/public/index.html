@@ -100,7 +100,7 @@
                   <span>시스템 상태</span><i class="live-dot"></i>
                 </div>
                 <strong id="systemStatus">확인 중</strong
-                ><small>Cloudflare 5분 자동 감지</small>
+                ><small id="systemStatusDetail">자동 감지 상태 확인 중</small>
               </article>
               <article class="status-card">
                 <span>활성 규칙</span><strong id="activeRuleCount">—</strong
@@ -120,13 +120,13 @@
               <div class="signal-copy">
                 <span class="signal-icon">◉</span>
                 <div>
-                  <b>5분 신호선</b><small>붉은 칸이 현재 구간입니다.</small>
+                  <b id="signalIntervalTitle">5분 신호선</b><small>붉은 칸이 현재 구간입니다.</small>
                 </div>
               </div>
               <div
                 id="signalClock"
                 class="signal-clock"
-                aria-label="시간당 5분 감지 구간"
+                aria-label="시간당 자동 감지 구간"
               ></div>
             </div>
           </section>
