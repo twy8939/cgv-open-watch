@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createCgvBookingUrl,
   createDiscordMessage,
   createDiscordTestMessage,
   createDiscordBatches,
@@ -16,7 +17,23 @@ const schedule = {
   showDate: "20260808",
   startTime: "1930",
   remainingSeats: 120,
+  movieNo: "30001192",
+  siteNo: "0013",
+  screenNo: "007",
+  scheduleSequence: "2",
 };
+
+test("감지된 회차 정보로 CGV 공식 예매 URL을 만든다", () => {
+  const url = new URL(createCgvBookingUrl(schedule));
+  assert.equal(url.origin, "https://cgv.co.kr");
+  assert.equal(url.pathname, "/cnm/movieBook/movie");
+  assert.equal(url.searchParams.get("movNo"), "30001192");
+  assert.equal(url.searchParams.get("scnYmd"), "20260808");
+  assert.equal(url.searchParams.get("siteNo"), "0013");
+  assert.equal(url.searchParams.get("siteNm"), "CGV 용산아이파크몰");
+  assert.equal(url.searchParams.get("scnsNo"), "007");
+  assert.equal(url.searchParams.get("scnSseq"), "2");
+});
 
 test("Discord 메시지에 필수 일정 정보를 넣는다", () => {
   const message = createDiscordMessage(schedule);
@@ -24,6 +41,9 @@ test("Discord 메시지에 필수 일정 정보를 넣는다", () => {
   assert.match(message, /용산아이파크몰/);
   assert.match(message, /2026-08-08 19:30/);
   assert.match(message, /120석/);
+  assert.match(message, /지금 예매하기/);
+  assert.match(message, /movNo=30001192/);
+  assert.match(message, /CGV 앱 링크를 지원하는 기기/);
 });
 
 test("테스트 알림은 실제 오픈 알림과 명확히 구분한다", () => {
@@ -31,6 +51,7 @@ test("테스트 알림은 실제 오픈 알림과 명확히 구분한다", () =>
   assert.match(message, /CGV Open Watch 테스트/);
   assert.match(message, /2026\. 08\. 03/);
   assert.match(message, /실제 예매 오픈 알림이 아닙니다/);
+  assert.match(message, /모바일 앱 연결 테스트/);
 });
 
 test("같은 극장과 날짜의 회차를 한 메시지로 묶는다", () => {

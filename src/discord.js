@@ -32,12 +32,48 @@ function displayKstDateTime(value) {
   }).format(value);
 }
 
+function cgvTheatreName(value) {
+  const name = String(value ?? "").trim();
+  if (!name || /^CGV\s/i.test(name)) return name;
+  return `CGV ${name}`;
+}
+
+export function createCgvBookingUrl(schedule = {}) {
+  const hasMovie = Boolean(schedule.movieNo);
+  const url = new URL(hasMovie
+    ? "https://cgv.co.kr/cnm/movieBook/movie"
+    : "https://cgv.co.kr/cnm/movieBook/cinema");
+
+  const parameters = {
+    movNo: schedule.movieNo,
+    scnSseq: schedule.scheduleSequence,
+    scnYmd: schedule.showDate,
+    scnsNo: schedule.screenNo,
+    siteNm: cgvTheatreName(schedule.theatreName),
+    siteNo: schedule.siteNo,
+  };
+  for (const [name, value] of Object.entries(parameters)) {
+    if (value != null && String(value).trim()) url.searchParams.set(name, String(value));
+  }
+  return url.toString();
+}
+
+function bookingFooter(schedule) {
+  return [
+    "**지금 예매하기**",
+    createCgvBookingUrl(schedule),
+    "📱 CGV 앱 링크를 지원하는 기기에서는 앱으로, 아니면 웹 예매로 열립니다.",
+  ].join("\n");
+}
+
 export function createDiscordTestMessage(now = new Date()) {
   return [
     "**🧪 CGV Open Watch 테스트**",
     "Discord Webhook 연결이 정상입니다.",
     `확인 시각: ${displayKstDateTime(now)} (KST)`,
     "이 메시지는 실제 예매 오픈 알림이 아닙니다.",
+    "📱 모바일 앱 연결 테스트:",
+    "https://cgv.co.kr/cnm/movieBook",
   ].join("\n");
 }
 
@@ -45,7 +81,6 @@ export function createDiscordMessage(schedule) {
   const seats = schedule.remainingSeats == null
     ? ""
     : `\n남은 좌석: ${schedule.remainingSeats}석`;
-  const bookingUrl = "https://cgv.co.kr/cnm/movieBook/cinema";
 
   return [
     "**🎬 CGV 예매 오픈**",
@@ -54,12 +89,11 @@ export function createDiscordMessage(schedule) {
     `상영관: ${schedule.auditoriumName || schedule.formatName}`,
     `형식: ${displayFormat(schedule)}`,
     `일시: ${displayDate(schedule.showDate)} ${displayTime(schedule.startTime)}${seats}`,
-    `예매: ${bookingUrl}`,
+    bookingFooter(schedule),
   ].join("\n");
 }
 
 export function createDiscordBatches(schedules) {
-  const bookingUrl = "https://cgv.co.kr/cnm/movieBook/cinema";
   const maxMessageLength = 1_900;
   const maxSectionLength = 1_200;
   const groups = new Map();
@@ -70,6 +104,7 @@ export function createDiscordBatches(schedules) {
       movieTitle: schedule.movieTitle,
       theatreName: schedule.theatreName,
       showDate: schedule.showDate,
+      bookingSchedule: schedule,
       sections: new Map(),
     };
     const auditorium = schedule.auditoriumName || "상영관 정보 없음";
@@ -90,7 +125,7 @@ export function createDiscordBatches(schedules) {
       `극장: ${group.theatreName}`,
       `날짜: ${displayDate(group.showDate)}`,
     ];
-    const footer = `예매: ${bookingUrl}`;
+    const footer = bookingFooter(group.bookingSchedule);
     const sectionChunks = [];
 
     for (const section of group.sections.values()) {

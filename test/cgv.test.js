@@ -6,6 +6,9 @@ const theatre = { name: "용산아이파크몰", siteNo: "0013" };
 const raw = {
   movNm: "스파이더맨-브랜드 뉴 데이",
   movNo: "30001192",
+  scnsNo: "007",
+  scnSseq: "2",
+  prodNo: "10001",
   scnYmd: "20260802",
   scnsrtTm: "2530",
   scnendTm: "2805",
@@ -39,6 +42,10 @@ test("CGV 판매 통제 회차는 예매 불가로 변환한다", () => {
 test("CGV SCREENX 필드와 좌석 수를 변환한다", () => {
   const schedule = mapApiSchedule(raw, theatre, new Date("2026-08-02T00:00:00Z"));
   assert.equal(schedule.movieTitle, raw.movNm);
+  assert.equal(schedule.movieNo, raw.movNo);
+  assert.equal(schedule.screenNo, raw.scnsNo);
+  assert.equal(schedule.scheduleSequence, raw.scnSseq);
+  assert.equal(schedule.productNo, raw.prodNo);
   assert.match(schedule.formatName, /SCREENX/);
   assert.equal(schedule.remainingSeats, 120);
   assert.equal(schedule.bookingClosed, false);
