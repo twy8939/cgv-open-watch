@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#101010" />
+    <title>CGV Open Watch</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <section id="loginView" class="login-shell" hidden>
+      <div class="login-card">
+        <p class="eyebrow">PRIVATE OPERATIONS CONSOLE</p>
+        <h1>CGV<br /><span>OPEN WATCH</span></h1>
+        <p class="login-copy">
+          예매가 열리는 순간을 놓치지 않도록<br />감시 규칙과 알림을 한곳에서
+          관리합니다.
+        </p>
+        <form id="loginForm">
+          <label for="password">관리 비밀번호</label>
+          <div class="password-row">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              autofocus
+            />
+            <button type="submit" class="primary">입장</button>
+          </div>
+          <p id="loginError" class="form-error" role="alert"></p>
+        </form>
+        <div class="signal-line"><i></i><i></i><i></i><i></i><i></i></div>
+        <small>5분 간격 자동 감지 · Discord 알림</small>
+      </div>
+    </section>
+
+    <div id="appView" class="app-shell" hidden>
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="CGV Open Watch 홈"
+          ><b>CGV</b><span>OPEN WATCH</span></a
+        >
+        <div class="pulse"><i></i><span>5분 감지</span></div>
+        <div class="top-actions">
+          <button id="catalogButton" class="ghost">CGV 목록 갱신</button>
+          <button id="logoutButton" class="icon-button" aria-label="로그아웃">
+            나가기
+          </button>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">BOOKING SIGNAL CONTROL</p>
+            <h1>예매 오픈을<br /><em>먼저 발견합니다.</em></h1>
+          </div>
+          <div class="hero-actions">
+            <button id="runButton" class="primary big">
+              지금 감지하기 <span>↗</span>
+            </button>
+            <button id="testButton" class="secondary big">
+              Discord 테스트
+            </button>
+          </div>
+        </section>
+
+        <section class="status-strip" aria-label="감시 상태">
+          <article>
+            <span>시스템</span><strong id="systemStatus">확인 중</strong>
+          </article>
+          <article>
+            <span>활성 규칙</span><strong id="activeRuleCount">—</strong>
+          </article>
+          <article>
+            <span>다음 감지</span><strong id="nextRun">—</strong>
+          </article>
+          <article>
+            <span>최근 결과</span><strong id="lastResult">—</strong>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <div class="section-head">
+            <div>
+              <p class="section-no">01 / WATCH RULES</p>
+              <h2>감시 규칙</h2>
+            </div>
+            <div class="section-actions">
+              <label class="pause-control"
+                ><input id="pauseToggle" type="checkbox" /><span
+                  >전체 일시정지</span
+                ></label
+              >
+              <button id="addRuleButton" class="primary">+ 규칙 추가</button>
+            </div>
+          </div>
+          <div id="ruleList" class="rule-list"></div>
+          <div class="save-dock">
+            <p id="dirtyLabel">모든 변경사항이 저장되었습니다.</p>
+            <button id="saveButton" class="primary" disabled>
+              변경사항 저장
+            </button>
+          </div>
+        </section>
+
+        <section class="lower-grid">
+          <div class="runs-panel">
+            <div class="section-head compact">
+              <div>
+                <p class="section-no">02 / RUN LOG</p>
+                <h2>최근 감지</h2>
+              </div>
+              <button id="refreshStatusButton" class="ghost">새로고침</button>
+            </div>
+            <div id="runList" class="run-list"></div>
+          </div>
+          <div class="timeline-panel">
+            <p class="section-no">03 / SIGNAL</p>
+            <h2>5분 신호선</h2>
+            <div id="signalClock" class="signal-clock"></div>
+            <p class="muted">
+              Cloudflare가 매 5분마다 GitHub Actions에 감지를 요청합니다.
+            </p>
+            <div class="mini-actions">
+              <button id="exportButton" class="ghost">설정 내보내기</button
+              ><label class="ghost file-button"
+                >설정 가져오기<input
+                  id="importInput"
+                  type="file"
+                  accept="application/json"
+              /></label>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="ruleDialog">
+      <form id="ruleForm" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="section-no">WATCH RULE EDITOR</p>
+            <h2 id="dialogTitle">감시 규칙 추가</h2>
+          </div>
+          <button
+            type="button"
+            id="closeDialog"
+            class="icon-button"
+            aria-label="닫기"
+          >
+            ×
+          </button>
+        </div>
+        <input id="ruleId" type="hidden" />
+        <div class="form-grid">
+          <label class="wide"
+            >규칙 이름<input
+              id="ruleName"
+              maxlength="80"
+              placeholder="예: 용산 SCREENX 주말"
+          /></label>
+          <label class="switch-field"
+            ><span>규칙 활성화</span
+            ><input id="ruleEnabled" type="checkbox" checked
+          /></label>
+          <fieldset class="wide">
+            <legend>영화</legend>
+            <div class="movie-grid">
+              <label
+                >현재 상영/예정 영화<select id="movieSelect">
+                  <option value="">직접 입력</option>
+                </select></label
+              ><label
+                >영화 제목<input
+                  id="movieTitle"
+                  required
+                  placeholder="영화 제목" /></label
+              ><label
+                >영화 번호 (선택)<input
+                  id="movieNo"
+                  inputmode="numeric"
+                  placeholder="CGV 영화 번호"
+              /></label>
+            </div>
+          </fieldset>
+          <fieldset class="wide">
+            <legend>극장 위치</legend>
+            <div class="theatre-tools">
+              <select id="regionSelect">
+                <option value="">모든 지역</option></select
+              ><input
+                id="theatreSearch"
+                type="search"
+                placeholder="극장 검색"
+              />
+            </div>
+            <div id="theatreOptions" class="theatre-options"></div>
+            <p class="field-hint">
+              영화·극장 조합은 활성 규칙 전체에서 최대 12개까지 사용할 수
+              있습니다.
+            </p>
+          </fieldset>
+          <fieldset class="wide">
+            <legend>상영 형식</legend>
+            <div id="formatOptions" class="chip-options">
+              <label
+                ><input type="checkbox" value="IMAX" /><span>IMAX</span></label
+              ><label
+                ><input type="checkbox" value="4DX" /><span>4DX</span></label
+              ><label
+                ><input type="checkbox" value="SCREENX" /><span
+                  >SCREENX</span
+                ></label
+              ><label
+                ><input type="checkbox" value="ULTRA 4DX" /><span
+                  >ULTRA 4DX</span
+                ></label
+              ><label
+                ><input type="checkbox" value="GOLD CLASS" /><span
+                  >GOLD CLASS</span
+                ></label
+              ><label
+                ><input type="checkbox" value="PRIVATE BOX" /><span
+                  >PRIVATE BOX</span
+                ></label
+              >
+            </div>
+            <p class="field-hint">
+              선택하지 않으면 모든 상영 형식을 감지합니다.
+            </p>
+          </fieldset>
+          <label class="wide"
+            >상영관 이름 (선택)<input
+              id="auditoriums"
+              placeholder="예: 14관, SCREENX관"
+            /><span class="field-hint"
+              >쉼표로 구분합니다. 비워두면 모든 상영관을 감지합니다.</span
+            ></label
+          >
+          <fieldset class="wide">
+            <legend>감시 날짜</legend>
+            <div class="date-mode">
+              <label
+                ><input
+                  name="dateMode"
+                  type="radio"
+                  value="rolling"
+                  checked
+                /><span>오늘부터</span></label
+              ><label
+                ><input name="dateMode" type="radio" value="range" /><span
+                  >기간 지정</span
+                ></label
+              ><label
+                ><input name="dateMode" type="radio" value="specific" /><span
+                  >날짜 선택</span
+                ></label
+              >
+            </div>
+            <div id="rollingFields" class="inline-fields">
+              <label
+                >앞으로<input
+                  id="lookAheadDays"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value="14" /></label
+              ><span>일</span>
+            </div>
+            <div id="rangeFields" class="inline-fields" hidden>
+              <label>시작일<input id="startDate" type="date" /></label
+              ><label>종료일<input id="endDate" type="date" /></label>
+            </div>
+            <div id="specificFields" hidden>
+              <label
+                >날짜 목록<input
+                  id="specificDates"
+                  placeholder="2026-08-08, 2026-08-09"
+              /></label>
+            </div>
+          </fieldset>
+          <fieldset class="wide">
+            <legend>상영 시간과 좌석</legend>
+            <div class="inline-fields">
+              <label
+                >시작<input id="startTime" type="text" inputmode="numeric" pattern="[0-4]?[0-9]:[0-5][0-9]" value="00:00" /></label
+              ><label
+                >종료<input id="endTime" type="text" inputmode="numeric" pattern="[0-4]?[0-9]:[0-5][0-9]" value="47:59" /></label
+              ><label
+                >최소 잔여 좌석<input
+                  id="minSeats"
+                  type="number"
+                  min="1"
+                  max="9999"
+                  value="1"
+              /></label>
+            </div>
+          </fieldset>
+          <label class="notify-field wide"
+            ><input id="notifyExisting" type="checkbox" /><span
+              ><b>첫 저장 직후 이미 열린 회차도 알림</b
+              ><small
+                >보통은 끄는 것을 권장합니다. 끄면 다음에 새로 열린 회차부터
+                알립니다.</small
+              ></span
+            ></label
+          >
+        </div>
+        <p id="ruleError" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" id="deleteRuleButton" class="danger">
+            규칙 삭제</button
+          ><span></span
+          ><button type="button" id="cancelDialog" class="secondary">
+            취소</button
+          ><button type="submit" class="primary">규칙 적용</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

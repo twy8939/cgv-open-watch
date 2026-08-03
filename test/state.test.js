@@ -102,7 +102,7 @@ test("전송 성공 회차만 대기열에서 제거한다", () => {
   assert.equal(result.pending.other.key, "other");
 });
 
-test("version 1 상태 파일을 대기열이 있는 version 2로 읽는다", async () => {
+test("version 1 상태 파일을 규칙별 기준선이 있는 version 3으로 읽는다", async () => {
   const directory = await mkdtemp(join(tmpdir(), "cgv-state-"));
   const statePath = join(directory, "notifications.json");
   await writeFile(statePath, JSON.stringify({
@@ -112,7 +112,8 @@ test("version 1 상태 파일을 대기열이 있는 version 2로 읽는다", as
     seen: { [schedule.key]: schedule },
   }));
   const result = await readState(statePath);
-  assert.equal(result.version, 2);
+  assert.equal(result.version, 3);
+  assert.ok(Object.hasOwn(result.initializedRules, "legacy-default"));
   assert.deepEqual(result.pending, {});
   assert.ok(result.seen[schedule.key]);
 });

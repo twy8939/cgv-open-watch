@@ -26,9 +26,9 @@ const scheduledTime = Number(process.env.TRIGGER_SCHEDULED_TIME_MS);
 const triggerDelaySeconds = Number.isFinite(scheduledTime) && scheduledTime > 0 && report.startedAt
   ? Math.max(0, Math.round((new Date(report.startedAt).getTime() - scheduledTime) / 1_000))
   : null;
-const formatLabel = Array.isArray(report.formats) && report.formats.length > 0
-  ? report.formats.join(", ")
-  : "전체 형식";
+const movieLabel = Array.isArray(report.movieTitles)
+  ? report.movieTitles.join(", ")
+  : valueOrDash(report.movieTitle);
 
 console.log([
   "## CGV Open Watch 실행 결과",
@@ -39,9 +39,9 @@ console.log([
   `- 감시 시작: ${kst(report.startedAt)}`,
   `- 트리거 지연: ${triggerDelaySeconds == null ? "-" : `${triggerDelaySeconds}초`}`,
   `- 조회 소요: ${report.durationMs == null ? "-" : `${Math.round(report.durationMs / 1_000)}초`}`,
-  `- 영화: ${valueOrDash(report.movieTitle)}`,
+  `- 활성 규칙: ${valueOrDash(report.ruleCount)}개`,
+  `- 영화: ${movieLabel}`,
   `- 극장: ${Array.isArray(report.theatres) ? report.theatres.join(", ") : "-"}`,
-  `- 형식: ${formatLabel}`,
   `- 전체/예매 가능: ${valueOrDash(report.allScheduleCount)} / ${valueOrDash(report.targetScheduleCount)}`,
   `- 새 예매 오픈: ${valueOrDash(report.newlyBookableCount)}개`,
   `- 전송 완료/대기: ${valueOrDash(report.notificationDeliveredCount)}개 / ${valueOrDash(report.pendingCount)}개`,

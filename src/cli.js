@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { collectCgvSchedules } from "./cgv.js";
-import { selectTargetSchedules } from "./matcher.js";
+import { collectCgvSchedulesForRules } from "./cgv.js";
+import { selectTargetsForRules } from "./matcher.js";
+import { ruleFingerprint, validateWatchConfig } from "./config.js";
 import { markDelivered, readState, updateState, writeState } from "./state.js";
 import {
   createDiscordBatches,
@@ -77,13 +78,36 @@ async function main() {
     return;
   }
 
-  const config = JSON.parse(await readFile(configPath, "utf8"));
+  const rawConfig = process.env.CGV_WATCH_CONFIG_B64
+    ? JSON.parse(Buffer.from(process.env.CGV_WATCH_CONFIG_B64, "base64url").toString("utf8"))
+    : JSON.parse(await readFile(configPath, "utf8"));
+  const { config, errors } = validateWatchConfig(rawConfig);
+  if (errors.length > 0) throw new Error(errors.join(" "));
+  if (config.paused) {
+    await mergeRunReport({
+      status: "paused",
+      startedAt: processStartedAt.toISOString(),
+      completedAt: new Date().toISOString(),
+    });
+    console.log("전체 감시가 일시정지되어 조회하지 않았습니다.");
+    return;
+  }
 
-  const allSchedules = await collectCgvSchedules(config);
-  const targets = selectTargetSchedules(allSchedules, config);
+  const enabledRules = config.rules.filter((rule) => rule.enabled);
+  if (enabledRules.length === 0) {
+    console.log("활성화된 감시 규칙이 없습니다.");
+    return;
+  }
+  const allSchedules = await collectCgvSchedulesForRules(enabledRules);
+  const targets = selectTargetsForRules(allSchedules, enabledRules);
   const previous = await readState(statePath);
   const result = updateState(previous, targets, {
     notifyExisting: options.notifyExisting,
+    rules: enabledRules.map((rule) => ({
+      id: rule.id,
+      fingerprint: ruleFingerprint(rule),
+      notifyExisting: rule.notifyExisting,
+    })),
   });
 
   await mergeRunReport({
@@ -91,9 +115,9 @@ async function main() {
     startedAt: processStartedAt.toISOString(),
     checkedAt: new Date().toISOString(),
     durationMs: Date.now() - processStartedAt.getTime(),
-    movieTitle: config.movieTitle,
-    theatres: config.theatres.map((theatre) => theatre.name),
-    formats: config.formats,
+    ruleCount: enabledRules.length,
+    movieTitles: enabledRules.map((rule) => rule.movieTitle),
+    theatres: [...new Set(enabledRules.flatMap((rule) => rule.theatres.map((theatre) => theatre.name)))],
     allScheduleCount: allSchedules.length,
     targetScheduleCount: targets.length,
     newlyBookableCount: result.notifications.length,
@@ -105,8 +129,7 @@ async function main() {
     await writeState(statePath, result.state);
   }
 
-  const formatLabel = config.formats.length > 0 ? config.formats.join(", ") : "전체 형식";
-  console.log(`CGV 일정 ${allSchedules.length}개, 대상 회차 ${targets.length}개 (${formatLabel})`);
+  console.log(`CGV 일정 ${allSchedules.length}개, 대상 회차 ${targets.length}개, 활성 규칙 ${enabledRules.length}개`);
   if (!result.changed) {
     console.log("새로 열린 회차가 없습니다.");
   }

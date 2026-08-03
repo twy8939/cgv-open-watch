@@ -11,6 +11,17 @@ const env = {
   GITHUB_WORKFLOW: "watch.yml",
   GITHUB_REF: "main",
   GITHUB_TOKEN: "github-secret-token",
+  DB: {
+    prepare: () => ({
+      bind: () => ({
+        first: async () => ({ value: JSON.stringify({
+          version: 3,
+          paused: false,
+          rules: [{ id: "rule", enabled: true }],
+        }) }),
+      }),
+    }),
+  },
 };
 
 test("5분 예약 시각을 포함해 GitHub workflow_dispatch를 호출한다", async () => {

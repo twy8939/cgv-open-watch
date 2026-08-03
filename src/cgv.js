@@ -73,14 +73,6 @@ function mapApiSchedule(item, theatre, now = new Date()) {
 }
 
 async function fetchTheatreSchedules(page, theatre, config) {
-  const detailUrl = `https://cgv.co.kr/cnm/bzplcCgv/${theatre.detailNo}`;
-  await page.goto(detailUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-
-  const pageTitle = await page.title();
-  if (!pageTitle.includes(theatre.name)) {
-    throw new Error(`CGV theatre page did not load: ${pageTitle}`);
-  }
-
   const result = await page.evaluate(async ({ siteNo, lookAheadDays: maxDays, movieNo }) => {
     const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
     const getJson = async (url) => {
@@ -171,7 +163,7 @@ export async function collectCgvSchedules(config, options = {}) {
     throw new Error("watch config requires movieTitle and a formats array");
   }
   if (!Array.isArray(config.theatres) || config.theatres.length === 0
-      || config.theatres.some((item) => !item.name || !item.siteNo || !item.detailNo)) {
+      || config.theatres.some((item) => !item.name || !item.siteNo)) {
     throw new Error("watch config requires at least one valid theatre");
   }
   if (!Number.isInteger(config.lookAheadDays) || config.lookAheadDays < 1 || config.lookAheadDays > 31) {
@@ -196,11 +188,133 @@ export async function collectCgvSchedules(config, options = {}) {
       userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`,
     });
     const page = await context.newPage();
+    await page.goto("https://cgv.co.kr/cnm/movieBook/cinema", {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    if (!(await page.title()).includes("CGV")) {
+      throw new Error("CGV booking page did not load");
+    }
     const schedules = [];
     for (const theatre of config.theatres) {
       schedules.push(...await fetchTheatreSchedules(page, theatre, config));
     }
     return schedules;
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function collectCgvSchedulesForRules(rules, options = {}) {
+  const requests = [];
+  const seen = new Set();
+  for (const rule of rules) {
+    for (const theatre of rule.theatres) {
+      const key = `${theatre.siteNo}:${rule.movieNo}:${rule.lookAheadDays}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      requests.push({
+        movieTitle: rule.movieTitle,
+        movieNo: rule.movieNo,
+        formats: [],
+        theatres: [theatre],
+        lookAheadDays: rule.dateMode === "rolling" ? rule.lookAheadDays : 31,
+      });
+    }
+  }
+
+  const executablePath = options.executablePath ?? await findChrome();
+  const browser = await chromium.launch({
+    executablePath,
+    headless: options.headless ?? true,
+    args: ["--disable-dev-shm-usage", "--no-sandbox"],
+  });
+  try {
+    const chromeVersion = browser.version();
+    const platform = process.platform === "darwin" ? "Macintosh; Intel Mac OS X 10_15_7" : "X11; Linux x86_64";
+    const context = await browser.newContext({
+      locale: "ko-KR",
+      timezoneId: "Asia/Seoul",
+      userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`,
+    });
+    const page = await context.newPage();
+    await page.goto("https://cgv.co.kr/cnm/movieBook/cinema", {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    if (!(await page.title()).includes("CGV")) throw new Error("CGV booking page did not load");
+    const schedules = [];
+    for (const request of requests) {
+      schedules.push(...await fetchTheatreSchedules(page, request.theatres[0], request));
+    }
+    return schedules.filter((schedule, index, items) => items.findIndex((candidate) => (
+      candidate.siteNo === schedule.siteNo
+        && candidate.movieNo === schedule.movieNo
+        && candidate.showDate === schedule.showDate
+        && candidate.startTime === schedule.startTime
+        && candidate.auditoriumName === schedule.auditoriumName
+    )) === index);
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function collectCgvCatalog(options = {}) {
+  const executablePath = options.executablePath ?? await findChrome();
+  const browser = await chromium.launch({
+    executablePath,
+    headless: options.headless ?? true,
+    args: ["--disable-dev-shm-usage", "--no-sandbox"],
+  });
+  try {
+    const chromeVersion = browser.version();
+    const platform = process.platform === "darwin" ? "Macintosh; Intel Mac OS X 10_15_7" : "X11; Linux x86_64";
+    const context = await browser.newContext({
+      locale: "ko-KR",
+      timezoneId: "Asia/Seoul",
+      userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`,
+    });
+    const page = await context.newPage();
+    await page.goto("https://cgv.co.kr/cnm/movieBook/cinema", {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    const catalog = await page.evaluate(async () => {
+      const load = async (url) => {
+        const response = await fetch(url, { credentials: "include", cache: "no-store" });
+        if (!response.ok) throw new Error(`CGV catalog request failed (${response.status})`);
+        const payload = await response.json();
+        if (payload?.statusCode !== 0) throw new Error("Unexpected CGV catalog response");
+        return payload.data;
+      };
+      const [siteData, movieData] = await Promise.all([
+        load("/api/v1/content/site/searchAllRegionAndSite?coCd=A420"),
+        load("/api/v1/booking/searchAtktTopPostrList?coCd=A420&movNm=&div=&attrCd="),
+      ]);
+      return { siteData, movieData };
+    });
+    const regions = Array.isArray(catalog.siteData?.regionInfo) ? catalog.siteData.regionInfo : [];
+    const theatres = Array.isArray(catalog.siteData?.siteInfo) ? catalog.siteData.siteInfo : [];
+    const movies = Array.isArray(catalog.movieData) ? catalog.movieData : [];
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      regions: regions.map((item) => ({
+        code: String(item.comCdval ?? item.regnGrpCd ?? item.regnCd ?? ""),
+        name: String(item.comCdvalNm ?? item.regnGrpNm ?? item.regnNm ?? ""),
+      })).filter((item) => item.code && item.name),
+      theatres: theatres.map((item) => ({
+        siteNo: String(item.siteNo ?? ""),
+        name: String(item.siteNm ?? ""),
+        regionCode: String(item.regnGrpCd ?? ""),
+      })).filter((item) => item.siteNo && item.name),
+      movies: movies.map((item) => ({
+        no: String(item.movNo ?? ""),
+        title: String(item.movNm ?? ""),
+        releaseDate: String(item.rlsYmd ?? item.rlsDt ?? ""),
+        grade: String(item.gradNm ?? item.rpsntGradNm ?? ""),
+      })).filter((item) => item.no && item.title),
+    };
   } finally {
     await browser.close();
   }

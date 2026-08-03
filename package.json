@@ -8,6 +8,7 @@
   },
   "scripts": {
     "check": "node src/cli.js",
+    "catalog": "node src/catalog-cli.js",
     "lint": "node --check src/*.js scheduler/*.js test/*.test.js scheduler/*.test.js",
     "test": "node --test",
     "scheduler:deploy": "npx --yes wrangler@4.118.0 deploy --config scheduler/wrangler.jsonc",

@@ -3,8 +3,8 @@ import { dirname } from "node:path";
 
 function emptyState() {
   return {
-    version: 2,
-    initialized: false,
+    version: 3,
+    initializedRules: {},
     updatedAt: null,
     seen: {},
     pending: {},
@@ -14,14 +14,26 @@ function emptyState() {
 function normalizeState(parsed) {
   if (parsed?.version === 1 && typeof parsed.seen === "object") {
     return {
-      version: 2,
-      initialized: parsed.initialized === true,
+      version: 3,
+      initializedRules: parsed.initialized === true ? { "legacy-default": null } : {},
       updatedAt: parsed.updatedAt ?? null,
       seen: parsed.seen,
       pending: {},
     };
   }
-  if (parsed?.version !== 2
+  if (parsed?.version === 2
+      && typeof parsed.seen === "object"
+      && typeof parsed.pending === "object") {
+    return {
+      version: 3,
+      initializedRules: parsed.initialized === true ? { "legacy-default": null } : {},
+      updatedAt: parsed.updatedAt ?? null,
+      seen: parsed.seen,
+      pending: parsed.pending,
+    };
+  }
+  if (parsed?.version !== 3
+      || typeof parsed.initializedRules !== "object"
       || typeof parsed.seen !== "object"
       || typeof parsed.pending !== "object") {
     throw new Error("Unsupported state file format");
@@ -44,7 +56,18 @@ export function updateState(previous, schedules, options = {}) {
   const now = options.now ?? new Date();
   const cutoff = options.cutoff ?? new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const lastUpdate = previous.updatedAt ? new Date(previous.updatedAt) : null;
-  const heartbeatDue = previous.initialized
+  const initializedRules = {
+    ...(previous.initializedRules
+      ?? (previous.initialized === true ? { "legacy-default": null } : {})),
+  };
+  const rules = Array.isArray(options.rules) && options.rules.length > 0
+    ? options.rules
+    : [{ id: "legacy-default", fingerprint: null, notifyExisting: options.notifyExisting === true }];
+  const currentRuleIds = new Set(rules.map((rule) => rule.id));
+  const ruleIdFor = (key, item) => item.ruleId
+    ?? [...currentRuleIds].find((ruleId) => key.startsWith(`${ruleId}:`))
+    ?? "legacy-default";
+  const heartbeatDue = Object.keys(initializedRules).length > 0
     && (lastUpdate == null
       || Number.isNaN(lastUpdate.getTime())
       || now.getTime() - lastUpdate.getTime() >= 30 * 24 * 60 * 60 * 1000);
@@ -53,10 +76,28 @@ export function updateState(previous, schedules, options = {}) {
     const date = new Date(`${item.showDate.slice(0, 4)}-${item.showDate.slice(4, 6)}-${item.showDate.slice(6, 8)}T23:59:59+09:00`);
     return Number.isNaN(date.getTime()) || date >= cutoff;
   });
-  const seen = Object.fromEntries(
-    retainedEntries,
-  );
-  const pending = { ...previous.pending };
+  const seen = Object.fromEntries(retainedEntries.filter(([key, item]) => {
+    const ruleId = ruleIdFor(key, item);
+    return currentRuleIds.has(ruleId);
+  }));
+  const previousPending = previous.pending ?? {};
+  const pending = Object.fromEntries(Object.entries(previousPending).filter(([key, item]) => {
+    const ruleId = ruleIdFor(key, item);
+    return currentRuleIds.has(ruleId);
+  }));
+
+  const baseliningRules = new Set();
+  for (const rule of rules) {
+    const wasInitialized = Object.hasOwn(initializedRules, rule.id);
+    const sameFingerprint = initializedRules[rule.id] === rule.fingerprint
+      || initializedRules[rule.id] == null
+      || rule.fingerprint == null;
+    if (!wasInitialized || !sameFingerprint) baseliningRules.add(rule.id);
+    initializedRules[rule.id] = rule.fingerprint ?? null;
+  }
+  for (const ruleId of Object.keys(initializedRules)) {
+    if (!currentRuleIds.has(ruleId)) delete initializedRules[ruleId];
+  }
 
   const newlySeen = [];
   for (const schedule of schedules) {
@@ -69,8 +110,11 @@ export function updateState(previous, schedules, options = {}) {
         movieTitle: schedule.movieTitle,
         auditoriumName: schedule.auditoriumName,
         startTime: schedule.startTime,
+        ruleId: schedule.ruleId ?? "legacy-default",
       };
-      if (previous.initialized || options.notifyExisting === true) {
+      const ruleId = schedule.ruleId ?? "legacy-default";
+      const rule = rules.find((candidate) => candidate.id === ruleId);
+      if (!baseliningRules.has(ruleId) || rule?.notifyExisting === true || options.notifyExisting === true) {
         pending[schedule.key] = {
           ...schedule,
           queuedAt: now.toISOString(),
@@ -79,29 +123,34 @@ export function updateState(previous, schedules, options = {}) {
     }
   }
 
-  const shouldNotify = previous.initialized || options.notifyExisting === true;
-  const changed = !previous.initialized
+  const notifications = newlySeen.filter((schedule) => {
+    const ruleId = schedule.ruleId ?? "legacy-default";
+    const rule = rules.find((candidate) => candidate.id === ruleId);
+    return !baseliningRules.has(ruleId) || rule?.notifyExisting === true || options.notifyExisting === true;
+  });
+  const changed = baseliningRules.size > 0
     || newlySeen.length > 0
     || retainedEntries.length !== Object.keys(previous.seen).length
+    || Object.keys(pending).length !== Object.keys(previousPending).length
     || heartbeatDue;
   return {
     state: changed
       ? {
-          version: 2,
-          initialized: true,
+          version: 3,
+          initializedRules,
           updatedAt: now.toISOString(),
           seen,
           pending,
         }
       : previous,
-    notifications: shouldNotify ? newlySeen : [],
-    baselineCount: previous.initialized ? 0 : newlySeen.length,
+    notifications,
+    baselineCount: newlySeen.length - notifications.length,
     changed,
   };
 }
 
 export function markDelivered(previous, scheduleKeys, options = {}) {
-  const pending = { ...previous.pending };
+  const pending = { ...(previous.pending ?? {}) };
   let changed = false;
   for (const key of scheduleKeys) {
     if (pending[key]) {
@@ -113,7 +162,7 @@ export function markDelivered(previous, scheduleKeys, options = {}) {
 
   return {
     ...previous,
-    version: 2,
+    version: 3,
     updatedAt: (options.now ?? new Date()).toISOString(),
     pending,
   };

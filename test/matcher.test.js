@@ -56,3 +56,27 @@ test("알림 키는 시작 시간과 상영관을 구분한다", () => {
   assert.notEqual(makeScheduleKey(base), makeScheduleKey({ ...base, startTime: "2000" }));
   assert.notEqual(makeScheduleKey(base), makeScheduleKey({ ...base, auditoriumName: "SCREENX 2관" }));
 });
+
+test("상영관·기간·시간·최소 좌석 조건을 함께 적용한다", () => {
+  const config = {
+    id: "rule-a",
+    movieTitle: base.movieTitle,
+    theatres: [{ siteNo: "0013" }],
+    formats: ["SCREENX"],
+    auditoriums: ["14관"],
+    dateMode: "range",
+    startDate: "20260808",
+    endDate: "20260810",
+    startTime: "1800",
+    endTime: "2200",
+    minSeats: 10,
+  };
+  const selected = selectTargetSchedules([
+    base,
+    { ...base, startTime: "1700" },
+    { ...base, startTime: "2000", remainingSeats: 5 },
+    { ...base, startTime: "2030", auditoriumName: "2관" },
+  ], config);
+  assert.equal(selected.length, 1);
+  assert.match(selected[0].key, /^rule-a:/);
+});

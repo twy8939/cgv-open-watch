@@ -1,8 +1,6 @@
 name: CGV booking watch
 
 on:
-  schedule:
-    - cron: "2-57/5 * * * *"
   workflow_dispatch:
     inputs:
       notify_existing:
@@ -25,6 +23,16 @@ on:
         required: false
         default: ""
         type: string
+      watch_config_b64:
+        description: "관리 화면에서 전달한 감시 설정(Base64URL)"
+        required: false
+        default: ""
+        type: string
+      sync_catalog:
+        description: "CGV 영화·극장 목록 갱신"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -49,6 +57,23 @@ jobs:
 
       - run: npm ci
 
+      - name: CGV 영화·극장 목록 갱신
+        if: inputs.sync_catalog == true
+        run: npm run catalog
+
+      - name: 갱신한 CGV 목록 저장
+        if: inputs.sync_catalog == true
+        run: |
+          if git diff --quiet -- config/catalog.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config/catalog.json
+          git commit -m "chore: CGV 영화 극장 목록 갱신"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
       - name: Discord 연결 테스트
         if: inputs.send_test_notification == true
         env:
@@ -57,8 +82,10 @@ jobs:
         run: npm run check -- --test-discord
 
       - name: CGV 일정 확인
+        if: inputs.send_test_notification != true && inputs.sync_catalog != true
         env:
           CGV_WATCH_REPORT: ${{ runner.temp }}/cgv-watch-report.json
+          CGV_WATCH_CONFIG_B64: ${{ inputs.watch_config_b64 }}
         run: |
           extra=""
           if [ "${{ inputs.notify_existing }}" = "true" ]; then
@@ -67,6 +94,7 @@ jobs:
           npm run check -- --scan-only $extra
 
       - name: 신규 회차와 알림 대기열 저장
+        if: inputs.send_test_notification != true && inputs.sync_catalog != true
         id: save_new
         run: |
           if git diff --quiet -- state/notifications.json; then
@@ -80,6 +108,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Discord 알림 전송
+        if: inputs.send_test_notification != true && inputs.sync_catalog != true
         id: notify
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -87,7 +116,7 @@ jobs:
         run: npm run check -- --send-pending
 
       - name: 전송 완료 상태 저장
-        if: always() && steps.save_new.outcome == 'success'
+        if: always() && inputs.send_test_notification != true && inputs.sync_catalog != true && steps.save_new.outcome == 'success'
         run: |
           if git diff --quiet -- state/notifications.json; then
             exit 0

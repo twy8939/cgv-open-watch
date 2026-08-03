@@ -5,7 +5,7 @@ CGV 공개 예매 화면에서 지정한 영화의 새 회차가 열리면 Disco
 ## 운영 방식
 
 - Cloudflare Cron이 매 5분마다 GitHub Actions 감시 작업을 호출합니다. 하루 288회입니다.
-- GitHub 자체 예약 실행도 보조 경로로 남겨 Cloudflare 호출 장애 때 감시가 완전히 멈추지 않게 합니다.
+- 실제 CGV 조회는 GitHub Actions의 Chrome이 담당하고, Cloudflare는 설정과 5분 호출만 담당합니다.
 - CGV 지점 공개 화면을 Chrome으로 열고, 화면이 사용하는 공식 읽기 전용 일정 응답을 확인합니다.
 - 로그인, CAPTCHA, 유료 기능, 접근 제한을 우회하지 않습니다.
 - 발견한 회차와 아직 보내지 못한 알림은 `state/notifications.json`에 저장해 재시작 후에도 이어서 처리합니다.
@@ -21,13 +21,32 @@ CGV 공개 예매 화면에서 지정한 영화의 새 회차가 열리면 Disco
 1. 이 폴더를 공개 GitHub 저장소에 올립니다.
 2. Discord에서 알림을 받을 채널의 Webhook을 만듭니다.
 3. GitHub `Settings > Secrets and variables > Actions`에 `DISCORD_WEBHOOK_URL`로 저장합니다.
-4. `Actions > CGV booking watch > Run workflow`로 첫 실행을 시작합니다.
+4. 관리 사이트의 `지금 감지하기`로 첫 실행을 시작합니다.
 
-Discord 연결만 다시 확인하려면 수동 실행에서 `send_test_notification`을 켭니다. `CGV Open Watch 테스트`라고 표시된 메시지를 보내므로 실제 예매 오픈 알림과 혼동되지 않습니다.
+Discord 연결만 다시 확인하려면 관리 사이트의 `Discord 테스트`를 누릅니다. `CGV Open Watch 테스트`라고 표시된 메시지를 보내므로 실제 예매 오픈 알림과 혼동되지 않습니다.
 
 저장소나 조직에서 Actions의 쓰기 권한을 제한했다면 `Settings > Actions > General > Workflow permissions`에서 상태 파일 커밋을 허용해야 합니다. 기본 브랜치가 보호되어 자동 커밋을 막는 경우에도 예외 설정이 필요합니다.
 
-첫 실행은 현재 열려 있는 회차를 기준선으로만 저장하고 알림하지 않습니다. 이미 열린 회차도 즉시 알림하려면 수동 실행의 `notify_existing`을 켭니다.
+새 규칙의 첫 실행은 현재 열려 있는 회차를 기준선으로만 저장하고 알림하지 않습니다. 규칙 편집 화면에서 `첫 저장 직후 이미 열린 회차도 알림`을 켠 경우에만 기존 회차도 알립니다.
+
+## 관리 사이트
+
+[CGV Open Watch 관리 사이트](https://cgv-open-watch-scheduler.rladydals8939.workers.dev)에서 다음 항목을 직접 관리할 수 있습니다.
+
+- 여러 영화 감시 규칙 추가, 편집, 삭제, 개별 활성화
+- CGV 최신 영화 목록 또는 아직 목록에 없는 영화 직접 입력
+- 지역 검색과 복수 극장 선택
+- IMAX, 4DX, SCREENX 등 상영 형식과 특정 상영관 이름 지정
+- 오늘부터 N일, 기간 범위, 특정 날짜 지정
+- 상영 시간대와 최소 잔여 좌석 설정
+- 전체 일시정지, 즉시 감지, Discord 테스트, CGV 목록 갱신
+- 최근 GitHub Actions 실행 결과, 설정 가져오기와 내보내기
+
+설정은 Cloudflare D1에 보관되며 GitHub 토큰과 관리 비밀번호는 Worker Secret에만 저장됩니다. 관리 비밀번호를 바꾸려면 다음 명령을 실행합니다.
+
+```bash
+npx --yes wrangler@4.118.0 secret put ADMIN_PASSWORD --config scheduler/wrangler.jsonc
+```
 
 ## 5분 외부 스케줄러 설정
 
@@ -37,8 +56,9 @@ GitHub의 `schedule`은 5분 cron을 설정해도 지연되거나 일부 실행�
 2. 로컬에서 `npx --yes wrangler@4.118.0 login`을 실행하고 브라우저 승인을 완료합니다.
 3. [GitHub Fine-grained token 만들기](https://github.com/settings/personal-access-tokens/new)에서 저장소를 `twy8939/cgv-open-watch` 하나만 선택하고 `Actions: Read and write` 권한만 부여합니다.
 4. `npm run scheduler:secret`을 실행해 토큰을 `GITHUB_TOKEN` Secret으로 저장합니다. 토큰은 파일이나 GitHub 저장소에 넣지 않습니다.
-5. `npm run scheduler:deploy`로 배포합니다.
-6. 최대 15분의 전파 시간 후 GitHub Actions에서 `cloudflare-cron` 호출이 5분 간격으로 생성되는지 연속 3회 확인합니다.
+5. D1 데이터베이스와 `ADMIN_PASSWORD`, `SESSION_SECRET` Worker Secret을 설정합니다.
+6. `npm run scheduler:deploy`로 배포합니다.
+7. 최대 15분의 전파 시간 후 GitHub Actions에서 `cloudflare-cron` 호출이 5분 간격으로 생성되는지 연속 3회 확인합니다.
 
 Cloudflare Worker 무료 플랜은 하루 100,000회 요청을 포함하므로 하루 288회의 이 호출기는 무료 범위에 들어갑니다. GitHub 토큰은 외부 호출기가 이 저장소의 감시 워크플로만 시작하는 용도이며, Discord Webhook은 계속 GitHub Secret에만 보관됩니다.
 
@@ -54,9 +74,9 @@ npm run check -- --dry-run
 
 Chrome을 기본 경로에서 찾지 못하면 `CHROME_PATH`를 지정합니다.
 
-## 감시 대상 변경
+## 파일로 감시 대상 변경
 
-[`config/watch.json`](./config/watch.json)에서 영화, 상영 형식, 지점을 변경합니다.
+보통은 관리 사이트를 사용합니다. 로컬 점검용 기본값은 [`config/watch.json`](./config/watch.json)에서 변경할 수 있습니다.
 
 ```json
 {
@@ -81,7 +101,7 @@ Chrome을 기본 경로에서 찾지 못하면 `CHROME_PATH`를 지정합니다.
 {
   "name": "용산아이파크몰",
   "siteNo": "0013",
-  "detailNo": "0013001"
+  "regionCode": "01"
 }
 ```
 
