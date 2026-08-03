@@ -19,6 +19,28 @@ function displayFormat(schedule) {
   return values.join(" / ") || "일반 상영";
 }
 
+function displayKstDateTime(value) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(value);
+}
+
+export function createDiscordTestMessage(now = new Date()) {
+  return [
+    "**🧪 CGV Open Watch 테스트**",
+    "Discord Webhook 연결이 정상입니다.",
+    `확인 시각: ${displayKstDateTime(now)} (KST)`,
+    "이 메시지는 실제 예매 오픈 알림이 아닙니다.",
+  ].join("\n");
+}
+
 export function createDiscordMessage(schedule) {
   const seats = schedule.remainingSeats == null
     ? ""

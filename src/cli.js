@@ -3,7 +3,14 @@ import { resolve } from "node:path";
 import { collectCgvSchedules } from "./cgv.js";
 import { selectTargetSchedules } from "./matcher.js";
 import { markDelivered, readState, updateState, writeState } from "./state.js";
-import { createDiscordBatches, sendDiscordContent } from "./discord.js";
+import {
+  createDiscordBatches,
+  createDiscordTestMessage,
+  sendDiscordContent,
+} from "./discord.js";
+import { mergeRunReport } from "./run-report.js";
+
+const processStartedAt = new Date();
 
 function parseArgs(argv) {
   const args = new Set(argv);
@@ -12,6 +19,7 @@ function parseArgs(argv) {
     notifyExisting: args.has("--notify-existing"),
     scanOnly: args.has("--scan-only"),
     sendPending: args.has("--send-pending"),
+    testDiscord: args.has("--test-discord"),
   };
 }
 
@@ -29,7 +37,11 @@ async function sendPending(statePath, dryRun) {
       console.log(`Discord 알림 전송: 새 회차 ${batch.keys.length}개`);
     }
   }
-  return { scheduleCount: schedules.length, messageCount: batches.length };
+  return {
+    scheduleCount: schedules.length,
+    messageCount: batches.length,
+    remainingCount: Object.keys(state.pending).length,
+  };
 }
 
 async function main() {
@@ -38,8 +50,29 @@ async function main() {
   const configPath = process.env.CGV_WATCH_CONFIG ?? resolve(projectRoot, "config/watch.json");
   const statePath = process.env.CGV_WATCH_STATE ?? resolve(projectRoot, "state/notifications.json");
 
+  if (options.testDiscord) {
+    await sendDiscordContent(
+      process.env.DISCORD_WEBHOOK_URL,
+      createDiscordTestMessage(),
+    );
+    await mergeRunReport({
+      testNotification: "success",
+      testNotificationAt: new Date().toISOString(),
+    });
+    console.log("Discord 테스트 알림을 전송했습니다.");
+    return;
+  }
+
   if (options.sendPending) {
     const counts = await sendPending(statePath, options.dryRun);
+    await mergeRunReport({
+      notificationTargetCount: counts.scheduleCount,
+      notificationMessageCount: counts.messageCount,
+      notificationDeliveredCount: counts.scheduleCount - counts.remainingCount,
+      notificationStatus: options.dryRun ? "dry-run" : "success",
+      pendingCount: counts.remainingCount,
+      completedAt: new Date().toISOString(),
+    });
     console.log(`Discord 알림 대상 ${counts.scheduleCount}개를 메시지 ${counts.messageCount}건으로 처리`);
     return;
   }
@@ -51,6 +84,21 @@ async function main() {
   const previous = await readState(statePath);
   const result = updateState(previous, targets, {
     notifyExisting: options.notifyExisting,
+  });
+
+  await mergeRunReport({
+    status: "scan-success",
+    startedAt: processStartedAt.toISOString(),
+    checkedAt: new Date().toISOString(),
+    durationMs: Date.now() - processStartedAt.getTime(),
+    movieTitle: config.movieTitle,
+    theatres: config.theatres.map((theatre) => theatre.name),
+    formats: config.formats,
+    allScheduleCount: allSchedules.length,
+    targetScheduleCount: targets.length,
+    newlyBookableCount: result.notifications.length,
+    baselineCount: result.baselineCount,
+    pendingCount: Object.keys(result.state.pending).length,
   });
 
   if (!options.dryRun && result.changed) {
@@ -74,7 +122,16 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
+try {
+  await main();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  await mergeRunReport({
+    status: "failed",
+    startedAt: processStartedAt.toISOString(),
+    failedAt: new Date().toISOString(),
+    error: message,
+  });
+  console.error(message);
   process.exitCode = 1;
-});
+}

@@ -10,6 +10,21 @@ on:
         required: false
         default: false
         type: boolean
+      send_test_notification:
+        description: "실제 오픈 알림과 구분된 Discord 테스트 메시지 전송"
+        required: false
+        default: false
+        type: boolean
+      trigger_source:
+        description: "외부 호출 출처"
+        required: false
+        default: "manual"
+        type: string
+      scheduled_time_ms:
+        description: "외부 스케줄러 예약 시각(Unix ms)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -34,7 +49,16 @@ jobs:
 
       - run: npm ci
 
+      - name: Discord 연결 테스트
+        if: inputs.send_test_notification == true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CGV_WATCH_REPORT: ${{ runner.temp }}/cgv-watch-report.json
+        run: npm run check -- --test-discord
+
       - name: CGV 일정 확인
+        env:
+          CGV_WATCH_REPORT: ${{ runner.temp }}/cgv-watch-report.json
         run: |
           extra=""
           if [ "${{ inputs.notify_existing }}" = "true" ]; then
@@ -59,6 +83,7 @@ jobs:
         id: notify
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CGV_WATCH_REPORT: ${{ runner.temp }}/cgv-watch-report.json
         run: npm run check -- --send-pending
 
       - name: 전송 완료 상태 저장
@@ -73,3 +98,11 @@ jobs:
           git commit -m "chore: CGV 알림 전송 상태 갱신"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: 실행 결과 요약
+        if: always()
+        env:
+          CGV_WATCH_REPORT: ${{ runner.temp }}/cgv-watch-report.json
+          TRIGGER_SOURCE: ${{ inputs.trigger_source }}
+          TRIGGER_SCHEDULED_TIME_MS: ${{ inputs.scheduled_time_ms }}
+        run: node src/summary.js >> "$GITHUB_STEP_SUMMARY"

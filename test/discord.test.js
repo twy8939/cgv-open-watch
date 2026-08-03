@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createDiscordMessage,
+  createDiscordTestMessage,
   createDiscordBatches,
   createDiscordMessages,
   sendDiscordMessage,
@@ -23,6 +24,13 @@ test("Discord 메시지에 필수 일정 정보를 넣는다", () => {
   assert.match(message, /용산아이파크몰/);
   assert.match(message, /2026-08-08 19:30/);
   assert.match(message, /120석/);
+});
+
+test("테스트 알림은 실제 오픈 알림과 명확히 구분한다", () => {
+  const message = createDiscordTestMessage(new Date("2026-08-03T01:30:00Z"));
+  assert.match(message, /CGV Open Watch 테스트/);
+  assert.match(message, /2026\. 08\. 03/);
+  assert.match(message, /실제 예매 오픈 알림이 아닙니다/);
 });
 
 test("같은 극장과 날짜의 회차를 한 메시지로 묶는다", () => {

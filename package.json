@@ -8,8 +8,10 @@
   },
   "scripts": {
     "check": "node src/cli.js",
-    "lint": "node --check src/*.js test/*.test.js",
-    "test": "node --test"
+    "lint": "node --check src/*.js scheduler/*.js test/*.test.js scheduler/*.test.js",
+    "test": "node --test",
+    "scheduler:deploy": "npx --yes wrangler@4.118.0 deploy --config scheduler/wrangler.jsonc",
+    "scheduler:secret": "npx --yes wrangler@4.118.0 secret put GITHUB_TOKEN --config scheduler/wrangler.jsonc"
   },
   "dependencies": {
     "playwright-core": "1.62.1"

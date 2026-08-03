@@ -44,14 +44,13 @@ async function startWebhook(responses) {
   };
 }
 
-function runSendPending(statePath, webhookUrl) {
+function runCli(args, environment = {}) {
   return new Promise((resolveRun) => {
-    const child = spawn(process.execPath, ["src/cli.js", "--send-pending"], {
+    const child = spawn(process.execPath, ["src/cli.js", ...args], {
       cwd: projectRoot,
       env: {
         ...process.env,
-        CGV_WATCH_STATE: statePath,
-        DISCORD_WEBHOOK_URL: webhookUrl,
+        ...environment,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -60,6 +59,13 @@ function runSendPending(statePath, webhookUrl) {
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.on("close", (code) => resolveRun({ code, stdout, stderr }));
+  });
+}
+
+function runSendPending(statePath, webhookUrl) {
+  return runCli(["--send-pending"], {
+    CGV_WATCH_STATE: statePath,
+    DISCORD_WEBHOOK_URL: webhookUrl,
   });
 }
 
@@ -89,6 +95,24 @@ test("대기 알림을 묶어 보내고 성공한 회차를 상태에서 제거�
     assert.equal(result.code, 0);
     assert.equal(webhook.requests.length, 1);
     assert.deepEqual(state.pending, {});
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, /super-secret/);
+  } finally {
+    await webhook.close();
+  }
+});
+
+test("Discord 테스트 알림을 실제 오픈 알림과 구분해 전송한다", async () => {
+  const webhook = await startWebhook([{ status: 200, body: { id: "test-message" } }]);
+
+  try {
+    const result = await runCli(["--test-discord"], {
+      DISCORD_WEBHOOK_URL: webhook.url,
+    });
+    assert.equal(result.code, 0);
+    assert.equal(webhook.requests.length, 1);
+    const payload = JSON.parse(webhook.requests[0].body);
+    assert.match(payload.content, /CGV Open Watch 테스트/);
+    assert.match(payload.content, /실제 예매 오픈 알림이 아닙니다/);
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, /super-secret/);
   } finally {
     await webhook.close();
