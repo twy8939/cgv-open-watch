@@ -3,72 +3,8 @@
   "initializedRules": {
     "legacy-default": "286441f51eaa457db317"
   },
-  "updatedAt": "2026-08-03T04:38:01.308Z",
+  "updatedAt": "2026-08-03T15:00:33.892Z",
   "seen": {
-    "0013:스파이더맨브랜드뉴데이:20260801:15관laser:2600": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "15관 (Laser)",
-      "startTime": "2600"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:17관laser:2615": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "17관 (Laser)",
-      "startTime": "2615"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:17관premiumlaser:2615": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "17관[PREMIUM] (Laser)",
-      "startTime": "2615"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:1관hamiltonwatchodyssey:2515": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "1관 (Hamilton Watch Odyssey)",
-      "startTime": "2515"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:4dx관:2630": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "4DX관",
-      "startTime": "2630"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:6관laser:2545": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "6관 (Laser)",
-      "startTime": "2545"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:imax관:2500": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "IMAX관",
-      "startTime": "2500"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260801:screenx관리클라이너withprivatebox:2530": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260801",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "SCREENX관 (리클라이너) with PRIVATE BOX",
-      "startTime": "2530"
-    },
     "0013:스파이더맨브랜드뉴데이:20260802:12관businesslaser:0945": {
       "firstSeenAt": "2026-08-01T15:49:28.250Z",
       "showDate": "20260802",
