@@ -775,7 +775,11 @@ legend {
     font-size: 16px;
   }
   .save-dock {
-    bottom: 8px;
+    position: static;
+    bottom: auto;
+  }
+  .save-dock:has(#saveButton:disabled) {
+    display: none;
   }
   .save-dock p {
     display: none;
