@@ -675,7 +675,11 @@ legend {
   transform: translateY(160%);
   transition: transform 0.25s;
 }
+.toast:empty {
+  display: none;
+}
 .toast.show {
+  display: block;
   transform: translateY(0);
 }
 [hidden] {
@@ -770,6 +774,9 @@ legend {
   .section-actions {
     width: 100%;
     justify-content: space-between;
+  }
+  .section-actions > * {
+    white-space: nowrap;
   }
   .rule-main strong {
     font-size: 16px;
