@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeWatchConfig, ruleFingerprint, validateWatchConfig } from "../src/config.js";
+import {
+  normalizeWatchConfig,
+  ruleFingerprint,
+  validateWatchConfig,
+} from "../src/config.js";
 
 const legacy = {
   movieTitle: "스파이더맨-브랜드 뉴 데이",
@@ -18,6 +22,28 @@ test("기존 단일 영화 설정을 version 3 규칙으로 변환한다", () =>
   assert.equal(config.rules[0].theatres[0].siteNo, "0013");
   assert.equal(config.rules[0].startTime, "0000");
   assert.equal(config.rules[0].endTime, "4759");
+  assert.deepEqual(config.schedule, {
+    normalIntervalMinutes: 5,
+    focusedIntervalMinutes: 2,
+    focusedLeadDays: 5,
+  });
+});
+
+test("사용자가 선택한 감지 주기를 정규화한다", () => {
+  const config = normalizeWatchConfig({
+    version: 3,
+    rules: [],
+    schedule: {
+      normalIntervalMinutes: 15,
+      focusedIntervalMinutes: 5,
+      focusedLeadDays: 3,
+    },
+  });
+  assert.deepEqual(config.schedule, {
+    normalIntervalMinutes: 15,
+    focusedIntervalMinutes: 5,
+    focusedLeadDays: 3,
+  });
 });
 
 test("규칙 선택 조건이 바뀌면 기준선 지문도 바뀐다", () => {

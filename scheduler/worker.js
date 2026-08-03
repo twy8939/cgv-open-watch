@@ -5,7 +5,14 @@ const MAX_ACTIVE_TARGETS = 12;
 const MAX_RULES = 25;
 const BASE_CRON = "*/5 * * * *";
 const BOOST_CRON = "*/2 * * * *";
-const BOOST_DAYS_BEFORE = 5;
+const NORMAL_INTERVALS = [5, 10, 15, 30];
+const FOCUSED_INTERVALS = [2, 5];
+const FOCUSED_LEAD_DAYS = [1, 3, 5, 7, 14];
+const DEFAULT_SCHEDULE = {
+  normalIntervalMinutes: 5,
+  focusedIntervalMinutes: 2,
+  focusedLeadDays: 5,
+};
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export class WorkflowDispatchError extends Error {
@@ -114,6 +121,32 @@ function dateOrdinal(value) {
   return Date.UTC(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, Number(value.slice(6, 8))) / DAY_MS;
 }
 
+function scheduleSettings(config) {
+  const schedule = config?.schedule ?? {};
+  const normalIntervalMinutes = NORMAL_INTERVALS.includes(Number(schedule.normalIntervalMinutes))
+    ? Number(schedule.normalIntervalMinutes)
+    : DEFAULT_SCHEDULE.normalIntervalMinutes;
+  const requestedFocused = FOCUSED_INTERVALS.includes(Number(schedule.focusedIntervalMinutes))
+    ? Number(schedule.focusedIntervalMinutes)
+    : DEFAULT_SCHEDULE.focusedIntervalMinutes;
+  const focusedIntervalMinutes = requestedFocused < normalIntervalMinutes
+    ? requestedFocused
+    : DEFAULT_SCHEDULE.focusedIntervalMinutes;
+  const focusedLeadDays = FOCUSED_LEAD_DAYS.includes(Number(schedule.focusedLeadDays))
+    ? Number(schedule.focusedLeadDays)
+    : DEFAULT_SCHEDULE.focusedLeadDays;
+  return { normalIntervalMinutes, focusedIntervalMinutes, focusedLeadDays };
+}
+
+export function nextExpectedRun(timestamp, intervalMinutes) {
+  const minute = Math.floor(timestamp / 60_000);
+  return (Math.floor(minute / intervalMinutes) + 1) * intervalMinutes * 60_000;
+}
+
+export function isScheduledInterval(timestamp, intervalMinutes) {
+  return Math.floor(timestamp / 60_000) % intervalMinutes === 0;
+}
+
 function ruleEndDate(rule) {
   if (rule?.dateMode === "specific") return [...(rule.specificDates ?? [])].sort().at(-1) ?? null;
   if (rule?.dateMode === "range") return rule.endDate ?? null;
@@ -129,6 +162,7 @@ function ruleBoostDate(rule) {
 export function createMonitoringPlan(config, scheduledTime = Date.now()) {
   const today = kstDate(scheduledTime);
   const todayOrdinal = dateOrdinal(today);
+  const schedule = scheduleSettings(config);
   const enabledRules = (config?.rules ?? []).filter((rule) => rule.enabled !== false);
   const expiredRules = enabledRules.filter((rule) => {
     const endDate = ruleEndDate(rule);
@@ -138,17 +172,22 @@ export function createMonitoringPlan(config, scheduledTime = Date.now()) {
   const boostDates = activeRules.map(ruleBoostDate).filter(Boolean).sort();
   const boosted = boostDates.some((date) => {
     const daysUntil = dateOrdinal(date) - todayOrdinal;
-    return daysUntil <= BOOST_DAYS_BEFORE;
+    return daysUntil <= schedule.focusedLeadDays;
   });
-  const nextBoostTarget = boostDates.find((date) => dateOrdinal(date) - todayOrdinal > BOOST_DAYS_BEFORE);
+  const nextBoostTarget = boostDates.find((date) => dateOrdinal(date) - todayOrdinal > schedule.focusedLeadDays);
   const nextBoostDate = nextBoostTarget == null
     ? null
-    : kstDate((dateOrdinal(nextBoostTarget) - BOOST_DAYS_BEFORE) * DAY_MS - 9 * 60 * 60 * 1_000);
+    : kstDate((dateOrdinal(nextBoostTarget) - schedule.focusedLeadDays) * DAY_MS - 9 * 60 * 60 * 1_000);
+  const intervalMinutes = boosted
+    ? schedule.focusedIntervalMinutes
+    : schedule.normalIntervalMinutes;
 
   return {
     today,
-    intervalMinutes: boosted ? 2 : 5,
-    cron: boosted ? BOOST_CRON : BASE_CRON,
+    intervalMinutes,
+    cron: intervalMinutes === 2 ? BOOST_CRON : BASE_CRON,
+    mode: boosted ? "focused" : "normal",
+    schedule,
     nextBoostDate,
     activeRules,
     expiredRules,
@@ -177,6 +216,15 @@ async function expireRules(env, config, expiredRules, now) {
 function validateConfig(input) {
   const errors = [];
   if (input?.version !== 3 || !Array.isArray(input.rules)) return ["지원하지 않는 설정 형식입니다."];
+  if (input.schedule) {
+    const normal = Number(input.schedule.normalIntervalMinutes);
+    const focused = Number(input.schedule.focusedIntervalMinutes);
+    const leadDays = Number(input.schedule.focusedLeadDays);
+    if (!NORMAL_INTERVALS.includes(normal)) errors.push("평상시 감지 간격을 다시 선택해 주세요.");
+    if (!FOCUSED_INTERVALS.includes(focused)) errors.push("집중 감지 간격을 다시 선택해 주세요.");
+    if (!FOCUSED_LEAD_DAYS.includes(leadDays)) errors.push("집중 감지 시작 시점을 다시 선택해 주세요.");
+    if (focused >= normal) errors.push("집중 감지 간격은 평상시보다 짧아야 합니다.");
+  }
   if (input.rules.length < 1 || input.rules.length > MAX_RULES) errors.push(`감시 규칙은 1~${MAX_RULES}개여야 합니다.`);
   const ids = new Set();
   let targets = 0;
@@ -323,6 +371,9 @@ async function apiHandler(request, env) {
       activeRules: plan.activeRules.length,
       expiredRules: plan.expiredRules.length,
       intervalMinutes: plan.intervalMinutes,
+      mode: plan.mode,
+      schedule: plan.schedule,
+      nextExpectedAt: new Date(nextExpectedRun(Date.now(), plan.intervalMinutes)).toISOString(),
       nextBoostDate: plan.nextBoostDate,
       runs: runs.workflow_runs.map((run) => ({ id: run.id, status: run.status, conclusion: run.conclusion, event: run.event, createdAt: run.created_at, updatedAt: run.updated_at, url: run.html_url })),
     });
@@ -378,6 +429,10 @@ export default {
       }
       if (controller.cron !== plan.cron) {
         console.log(JSON.stringify({ event: "workflow-skipped", reason: "inactive-frequency", cron: controller.cron, activeCron: plan.cron }));
+        return;
+      }
+      if (!isScheduledInterval(controller.scheduledTime, plan.intervalMinutes)) {
+        console.log(JSON.stringify({ event: "workflow-skipped", reason: "interval-boundary", intervalMinutes: plan.intervalMinutes }));
         return;
       }
       const dispatched = await dispatchWatchWorkflow(env, controller.scheduledTime, { ...options, config: plan.config });

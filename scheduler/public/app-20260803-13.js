@@ -1,8 +1,19 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const DEFAULT_SCHEDULE = {
+  normalIntervalMinutes: 5,
+  focusedIntervalMinutes: 2,
+  focusedLeadDays: 5,
+};
 
 const state = {
-  config: { version: 3, revision: 1, paused: false, rules: [] },
+  config: {
+    version: 3,
+    revision: 1,
+    paused: false,
+    schedule: { ...DEFAULT_SCHEDULE },
+    rules: [],
+  },
   catalog: { regions: [], theatres: [], movies: [] },
   editingIndex: -1,
   wizardStep: 1,
@@ -11,6 +22,8 @@ const state = {
   draftDates: new Set(),
   dirty: false,
   intervalMinutes: 5,
+  nextExpectedAt: null,
+  monitoringActive: false,
   quickRuleId: null,
   picker: {
     kind: null,
@@ -135,6 +148,21 @@ function dateText(rule) {
   return `오늘부터 ${rule.lookAheadDays ?? 14}일`;
 }
 
+function withSchedule(config) {
+  return {
+    ...config,
+    schedule: { ...DEFAULT_SCHEDULE, ...(config?.schedule ?? {}) },
+  };
+}
+
+function scheduleSummary(schedule = state.config.schedule) {
+  return `평소 ${schedule.normalIntervalMinutes}분 · 상영일 ${schedule.focusedLeadDays}일 전부터 ${schedule.focusedIntervalMinutes}분`;
+}
+
+function renderScheduleText() {
+  $("#quickFrequency").textContent = scheduleSummary();
+}
+
 function quickRule() {
   return state.config.rules.find((rule) => rule.id === state.quickRuleId)
     ?? state.config.rules[0]
@@ -197,6 +225,7 @@ function updateQuickPreview() {
 function renderQuickSetup() {
   const rules = state.config.rules;
   const hasRules = rules.length > 0;
+  renderScheduleText();
   $("#quickEmpty").hidden = hasRules;
   $("#quickForm").hidden = !hasRules;
   $("#quickRulePicker").hidden = rules.length <= 1;
@@ -740,11 +769,48 @@ function updateDateFields() {
   $("#specificFields").hidden = mode !== "specific";
 }
 
+function frequencyValue(name) {
+  return Number($(`input[name="${name}"]:checked`, $("#frequencyForm"))?.value);
+}
+
+function updateFrequencyForm() {
+  const normal = frequencyValue("normalInterval");
+  $$('input[name="focusedInterval"]', $("#frequencyForm")).forEach((input) => {
+    input.disabled = Number(input.value) >= normal;
+    input.closest("label").classList.toggle("disabled", input.disabled);
+  });
+  let focused = frequencyValue("focusedInterval");
+  if (!focused || focused >= normal) {
+    const fallback = $('input[name="focusedInterval"][value="2"]', $("#frequencyForm"));
+    fallback.checked = true;
+    focused = 2;
+  }
+  const leadDays = frequencyValue("focusedLeadDays");
+  $("#frequencyReview").textContent = `평소에는 ${normal}분마다, 상영일 ${leadDays}일 전부터는 ${focused}분마다 확인합니다.`;
+  $("#frequencyUsage").textContent = `평상시 하루 최대 ${Math.floor(1440 / normal)}회 · 집중 기간 ${Math.floor(1440 / focused)}회 확인`;
+  $("#frequencyError").textContent = "";
+}
+
+function openFrequencyDialog() {
+  const schedule = state.config.schedule;
+  $(`input[name="normalInterval"][value="${schedule.normalIntervalMinutes}"]`).checked = true;
+  $(`input[name="focusedInterval"][value="${schedule.focusedIntervalMinutes}"]`).checked = true;
+  $(`input[name="focusedLeadDays"][value="${schedule.focusedLeadDays}"]`).checked = true;
+  updateFrequencyForm();
+  $("#frequencyDialog").showModal();
+  requestAnimationFrame(() => $('input[name="normalInterval"]:checked')?.focus());
+}
+
+function closeFrequencyDialog() {
+  if ($("#frequencyDialog").open) $("#frequencyDialog").close();
+  $("#frequencyButton").focus();
+}
+
 async function persistConfig(successMessage) {
-  state.config = await api("/api/config", {
+  state.config = withSchedule(await api("/api/config", {
     method: "PUT",
     body: JSON.stringify(state.config),
-  });
+  }));
   clean();
   renderRules();
   if (successMessage) toast(successMessage);
@@ -872,7 +938,7 @@ async function loadData() {
     api("/api/config"),
     api("/api/catalog"),
   ]);
-  state.config = config;
+  state.config = withSchedule(config);
   state.catalog = catalog;
   renderRules();
   clean();
@@ -892,6 +958,12 @@ async function loadStatus() {
   try {
     const status = await api("/api/status");
     state.intervalMinutes = status.intervalMinutes ?? 5;
+    state.monitoringActive = !status.paused && status.activeRules > 0;
+    state.nextExpectedAt = state.monitoringActive ? status.nextExpectedAt ?? null : null;
+    state.config.schedule = {
+      ...state.config.schedule,
+      ...(status.schedule ?? {}),
+    };
     const latest = status.runs[0];
     const latestAge = latest
       ? Date.now() - new Date(latest.updatedAt).getTime()
@@ -907,6 +979,8 @@ async function loadStatus() {
       ? "일시정지"
       : status.activeRules === 0
         ? "활성 규칙 없음"
+        : !latest
+          ? "첫 확인 대기"
         : running
           ? "확인 중"
           : failed
@@ -915,13 +989,15 @@ async function loadStatus() {
               ? "확인 지연"
               : "정상 작동 중";
     $("#systemStatus").textContent = systemLabel;
-    $("#systemStatusDetail").textContent = `${status.activeRules}개 규칙 · ${state.intervalMinutes}분 간격`;
+    const modeLabel = status.mode === "focused" ? "집중 감지" : "평상시 감지";
+    $("#systemStatusDetail").textContent = `${status.activeRules}개 규칙 · ${modeLabel} ${state.intervalMinutes}분`;
     $("#systemStatus").style.color = healthy ? "var(--ink)" : "var(--amber)";
     $(".live-dot").classList.toggle("warning", !healthy);
     $("#railStatus").textContent = systemLabel;
     $(".mobile-signal").innerHTML = `<i></i>${systemLabel}`;
     $(".rail-status").classList.toggle("paused", !healthy);
     $("#activeRuleCount").textContent = `${status.activeRules}개`;
+    renderScheduleText();
     renderNextRun();
     $("#lastResult").textContent = latest ? resultLabel(latest) : "기록 없음";
     $("#lastResultTime").textContent = latest
@@ -952,11 +1028,18 @@ async function loadStatus() {
 }
 
 function renderNextRun() {
+  if (!state.monitoringActive) {
+    $("#nextRun").textContent = "—";
+    return;
+  }
   const now = new Date();
   const interval = state.intervalMinutes;
-  const next = new Date(now);
-  next.setSeconds(0, 0);
-  next.setMinutes((Math.floor(now.getMinutes() / interval) + 1) * interval);
+  let next = state.nextExpectedAt ? new Date(state.nextExpectedAt) : new Date(now);
+  if (!state.nextExpectedAt || next.getTime() <= now.getTime()) {
+    const minute = Math.floor(now.getTime() / 60_000);
+    next = new Date((Math.floor(minute / interval) + 1) * interval * 60_000);
+    state.nextExpectedAt = next.toISOString();
+  }
   $("#nextRun").textContent = next.toLocaleTimeString("ko-KR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -1009,7 +1092,7 @@ async function importConfig(input) {
     const imported = JSON.parse(await input.files[0].text());
     if (imported?.version !== 3 || !Array.isArray(imported.rules))
       throw new Error();
-    state.config = imported;
+    state.config = withSchedule(imported);
     renderRules();
     markDirty();
     toast("설정을 불러왔습니다. 검토 후 저장해 주세요.");
@@ -1079,6 +1162,57 @@ $$('[data-mobile-menu-link]').forEach((link) =>
 $("#mobileLogoutButton").addEventListener("click", async () => {
   closeMobileMenu();
   await logout();
+});
+$("#frequencyButton").addEventListener("click", openFrequencyDialog);
+$("#frequencyClose").addEventListener("click", closeFrequencyDialog);
+$("#frequencyCancel").addEventListener("click", closeFrequencyDialog);
+$("#frequencyForm").addEventListener("change", updateFrequencyForm);
+$("#frequencyDialog").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeFrequencyDialog();
+});
+$("#frequencyDialog").addEventListener("click", (event) => {
+  if (event.target === $("#frequencyDialog")) closeFrequencyDialog();
+});
+$("#frequencyDialog").addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const focusable = $$('button:not([disabled]), input:not([disabled])', event.currentTarget)
+    .filter((element) => !element.hidden && element.getClientRects().length > 0);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+$("#frequencyForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const previousSchedule = { ...state.config.schedule };
+  const schedule = {
+    normalIntervalMinutes: frequencyValue("normalInterval"),
+    focusedIntervalMinutes: frequencyValue("focusedInterval"),
+    focusedLeadDays: frequencyValue("focusedLeadDays"),
+  };
+  if (schedule.focusedIntervalMinutes >= schedule.normalIntervalMinutes) {
+    $("#frequencyError").textContent = "집중 감지 간격은 평상시보다 짧게 선택해 주세요.";
+    return;
+  }
+  const button = $("#frequencySave");
+  state.config.schedule = schedule;
+  setButtonBusy(button, true, "저장 중");
+  try {
+    await persistConfig("감지 주기를 저장했습니다. 다음 자동 확인부터 적용됩니다.");
+    await loadStatus();
+    closeFrequencyDialog();
+  } catch (error) {
+    state.config.schedule = previousSchedule;
+    $("#frequencyError").textContent = error.message;
+  } finally {
+    setButtonBusy(button, false);
+  }
 });
 $("#quickRuleTabs").addEventListener("click", (event) => {
   const button = event.target.closest("[data-quick-rule-id]");

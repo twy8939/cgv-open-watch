@@ -4,6 +4,14 @@ export const LEGACY_RULE_ID = "legacy-default";
 export const CONFIG_VERSION = 3;
 export const MAX_RULES = 25;
 export const MAX_ACTIVE_TARGETS = 12;
+export const NORMAL_INTERVALS = [5, 10, 15, 30];
+export const FOCUSED_INTERVALS = [2, 5];
+export const FOCUSED_LEAD_DAYS = [1, 3, 5, 7, 14];
+export const DEFAULT_SCHEDULE = Object.freeze({
+  normalIntervalMinutes: 5,
+  focusedIntervalMinutes: 2,
+  focusedLeadDays: 5,
+});
 
 const DATE_PATTERN = /^\d{8}$/;
 const TIME_PATTERN = /^\d{4}$/;
@@ -36,6 +44,22 @@ function normalizeTheatre(theatre) {
     regionCode: String(theatre?.regionCode ?? theatre?.regnGrpCd ?? "").trim(),
     regionName: String(theatre?.regionName ?? theatre?.regnGrpNm ?? "").trim(),
   };
+}
+
+export function normalizeSchedule(schedule) {
+  const normalIntervalMinutes = NORMAL_INTERVALS.includes(Number(schedule?.normalIntervalMinutes))
+    ? Number(schedule.normalIntervalMinutes)
+    : DEFAULT_SCHEDULE.normalIntervalMinutes;
+  const requestedFocused = FOCUSED_INTERVALS.includes(Number(schedule?.focusedIntervalMinutes))
+    ? Number(schedule.focusedIntervalMinutes)
+    : DEFAULT_SCHEDULE.focusedIntervalMinutes;
+  const focusedIntervalMinutes = requestedFocused < normalIntervalMinutes
+    ? requestedFocused
+    : DEFAULT_SCHEDULE.focusedIntervalMinutes;
+  const focusedLeadDays = FOCUSED_LEAD_DAYS.includes(Number(schedule?.focusedLeadDays))
+    ? Number(schedule.focusedLeadDays)
+    : DEFAULT_SCHEDULE.focusedLeadDays;
+  return { normalIntervalMinutes, focusedIntervalMinutes, focusedLeadDays };
 }
 
 export function normalizeRule(rule, index = 0) {
@@ -80,6 +104,7 @@ export function normalizeWatchConfig(input) {
       revision: Math.max(1, Number(input.revision) || 1),
       paused: input.paused === true,
       updatedAt: input.updatedAt ?? null,
+      schedule: normalizeSchedule(input.schedule),
       rules: input.rules.slice(0, MAX_RULES).map(normalizeRule),
     };
   }
@@ -94,6 +119,7 @@ export function normalizeWatchConfig(input) {
     revision: 1,
     paused: false,
     updatedAt: null,
+    schedule: normalizeSchedule(input?.schedule),
     rules: legacyRule.movieTitle ? [legacyRule] : [],
   };
 }
@@ -112,6 +138,15 @@ function isValidCalendarDate(value) {
 export function validateWatchConfig(input) {
   const config = normalizeWatchConfig(input);
   const errors = [];
+  if (input?.schedule) {
+    const normal = Number(input.schedule.normalIntervalMinutes);
+    const focused = Number(input.schedule.focusedIntervalMinutes);
+    const leadDays = Number(input.schedule.focusedLeadDays);
+    if (!NORMAL_INTERVALS.includes(normal)) errors.push("평상시 감지 간격을 다시 선택해 주세요.");
+    if (!FOCUSED_INTERVALS.includes(focused)) errors.push("집중 감지 간격을 다시 선택해 주세요.");
+    if (!FOCUSED_LEAD_DAYS.includes(leadDays)) errors.push("집중 감지 시작 시점을 다시 선택해 주세요.");
+    if (focused >= normal) errors.push("집중 감지 간격은 평상시보다 짧아야 합니다.");
+  }
   if (config.rules.length === 0) errors.push("감시 규칙을 하나 이상 추가해 주세요.");
   if (config.rules.length > MAX_RULES) errors.push(`감시 규칙은 최대 ${MAX_RULES}개까지 저장할 수 있습니다.`);
 

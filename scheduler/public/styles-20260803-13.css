@@ -3611,3 +3611,196 @@ select:focus {
     width: 100%;
   }
 }
+
+/* Monitoring frequency controls */
+.operation-schedule-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.operation-schedule-line button {
+  min-height: 30px;
+  padding: 0 8px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.operation-schedule-line button:hover {
+  background: var(--surface-2);
+}
+
+.frequency-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 40px));
+  padding: 0;
+  color: var(--ink);
+  background: #ffffff;
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.frequency-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(2px);
+}
+.frequency-dialog > form {
+  max-height: inherit;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.frequency-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.frequency-header h2 {
+  margin-bottom: 6px;
+}
+.frequency-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.frequency-body {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+  overflow: auto;
+}
+.frequency-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.frequency-group legend {
+  padding: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+.frequency-group > p {
+  margin: 5px 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.frequency-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.frequency-options.two-options {
+  grid-template-columns: repeat(2, 1fr);
+}
+.frequency-options.lead-options {
+  grid-template-columns: repeat(5, 1fr);
+}
+.frequency-options label {
+  min-width: 0;
+  position: relative;
+}
+.frequency-options input {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  opacity: 0;
+}
+.frequency-options span {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+}
+.frequency-options span::after {
+  content: "✓";
+  width: 0;
+  opacity: 0;
+  font-weight: 700;
+  overflow: hidden;
+}
+.frequency-options input:checked + span {
+  color: #ffffff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.frequency-options input:checked + span::after {
+  width: auto;
+  opacity: 1;
+}
+.frequency-options input:focus-visible + span {
+  outline: 3px solid rgba(224, 11, 65, 0.42);
+  outline-offset: 2px;
+}
+.frequency-options label.disabled span {
+  color: #b0b0b0;
+  background: var(--surface-2);
+  cursor: not-allowed;
+}
+.frequency-review {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.frequency-review strong {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.frequency-review small {
+  color: var(--muted);
+}
+.frequency-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  background: #ffffff;
+  border-top: 1px solid var(--line-soft);
+}
+
+@media (max-width: 600px) {
+  .frequency-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 85dvh;
+    margin: auto 0 0;
+    border-radius: 20px 20px 0 0;
+  }
+  .frequency-header,
+  .frequency-body {
+    padding: 20px;
+  }
+  .frequency-body {
+    gap: 22px;
+  }
+  .frequency-options,
+  .frequency-options.lead-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .frequency-options.lead-options label:last-child {
+    grid-column: 1 / -1;
+  }
+  .frequency-footer {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  }
+}

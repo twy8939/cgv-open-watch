@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#ffffff" />
     <title>CGV Open Watch</title>
-    <link rel="stylesheet" href="/styles-20260803-12.css" />
-    <script src="/app-20260803-12.js" type="module"></script>
+    <link rel="stylesheet" href="/styles-20260803-13.css" />
+    <script src="/app-20260803-13.js" type="module"></script>
   </head>
   <body>
     <section id="loginView" class="login-view" hidden>
@@ -101,7 +101,10 @@
                   <i class="live-dot"></i><span>자동 감지</span>
                 </div>
                 <strong id="systemStatus">확인 중</strong>
-                <small id="systemStatusDetail">자동 감지 상태 확인 중</small>
+                <div class="operation-schedule-line">
+                  <small id="systemStatusDetail">자동 감지 상태 확인 중</small>
+                  <button id="frequencyButton" type="button">주기 변경</button>
+                </div>
               </div>
               <dl class="operation-metrics">
                 <div>
@@ -277,6 +280,58 @@
           <button id="mobileLogoutButton" type="button" class="mobile-logout">로그아웃</button>
         </div>
       </div>
+    </dialog>
+
+    <dialog id="frequencyDialog" class="frequency-dialog" aria-labelledby="frequencyDialogTitle" aria-describedby="frequencyDialogDescription">
+      <form id="frequencyForm" method="dialog">
+        <header class="frequency-header">
+          <div>
+            <h2 id="frequencyDialogTitle">자동 감지 주기</h2>
+            <p id="frequencyDialogDescription">평소에는 여유 있게 확인하고, 상영일이 가까워지면 더 자주 확인합니다.</p>
+          </div>
+          <button id="frequencyClose" type="button" class="close-button" aria-label="감지 주기 설정 닫기">×</button>
+        </header>
+        <div class="frequency-body">
+          <fieldset class="frequency-group">
+            <legend>평상시 확인</legend>
+            <p>집중 기간이 아닐 때 CGV를 확인하는 간격입니다.</p>
+            <div class="frequency-options">
+              <label><input type="radio" name="normalInterval" value="5" /><span>5분</span></label>
+              <label><input type="radio" name="normalInterval" value="10" /><span>10분</span></label>
+              <label><input type="radio" name="normalInterval" value="15" /><span>15분</span></label>
+              <label><input type="radio" name="normalInterval" value="30" /><span>30분</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="frequency-group">
+            <legend>집중 감지</legend>
+            <p>상영일이 가까워졌을 때 더 빠르게 확인합니다.</p>
+            <div class="frequency-options two-options">
+              <label><input type="radio" name="focusedInterval" value="2" /><span>2분</span></label>
+              <label><input type="radio" name="focusedInterval" value="5" /><span>5분</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="frequency-group">
+            <legend>집중 감지 시작</legend>
+            <p>상영일 며칠 전부터 집중 감지를 시작할지 선택합니다.</p>
+            <div class="frequency-options lead-options">
+              <label><input type="radio" name="focusedLeadDays" value="1" /><span>1일 전</span></label>
+              <label><input type="radio" name="focusedLeadDays" value="3" /><span>3일 전</span></label>
+              <label><input type="radio" name="focusedLeadDays" value="5" /><span>5일 전</span></label>
+              <label><input type="radio" name="focusedLeadDays" value="7" /><span>7일 전</span></label>
+              <label><input type="radio" name="focusedLeadDays" value="14" /><span>14일 전</span></label>
+            </div>
+          </fieldset>
+          <div class="frequency-review" aria-live="polite">
+            <strong id="frequencyReview">평소 5분 · 상영일 5일 전부터 2분</strong>
+            <small id="frequencyUsage">평상시 하루 최대 288회 확인</small>
+          </div>
+          <p id="frequencyError" class="form-error" role="alert"></p>
+        </div>
+        <footer class="frequency-footer">
+          <button id="frequencyCancel" type="button" class="button button-secondary">취소</button>
+          <button id="frequencySave" type="submit" class="button button-primary">감지 주기 저장</button>
+        </footer>
+      </form>
     </dialog>
 
     <dialog id="ruleDialog" class="rule-dialog">

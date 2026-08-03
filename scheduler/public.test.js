@@ -26,7 +26,7 @@ test("관리 화면 선택 UI가 공통 Picker 계약을 유지한다", async ()
 });
 
 test("관리 화면이 Airbnb 기반 소비자 디자인 토큰을 사용한다", async () => {
-  const css = await readFile(new URL("styles-20260803-12.css", publicUrl), "utf8");
+  const css = await readFile(new URL("styles-20260803-13.css", publicUrl), "utf8");
 
   assert.match(css, /--brand: #ff385c/);
   assert.match(css, /--paper: #ffffff/);
@@ -39,7 +39,7 @@ test("관리 화면이 Airbnb 기반 소비자 디자인 토큰을 사용한다"
 test("첫 화면은 실제 감시 판단에 필요한 정보만 표시한다", async () => {
   const [html, script] = await Promise.all([
     readFile(new URL("index.html", publicUrl), "utf8"),
-    readFile(new URL("app-20260803-12.js", publicUrl), "utf8"),
+    readFile(new URL("app-20260803-13.js", publicUrl), "utf8"),
   ]);
 
   assert.match(html, /class="operation-panel"/);
@@ -55,8 +55,25 @@ test("첫 화면은 실제 감시 판단에 필요한 정보만 표시한다", a
   assert.match(script, /const staleAfter = Math\.max\(15, state\.intervalMinutes \* 3\)/);
 });
 
+test("자동 감지 주기를 실제 지원 범위 안에서 설정한다", async () => {
+  const [html, script] = await Promise.all([
+    readFile(new URL("index.html", publicUrl), "utf8"),
+    readFile(new URL("app-20260803-13.js", publicUrl), "utf8"),
+  ]);
+
+  assert.match(html, /id="frequencyButton"/);
+  assert.match(html, /id="frequencyDialog"[^>]+aria-labelledby="frequencyDialogTitle"/);
+  assert.match(html, /name="normalInterval" value="5"/);
+  assert.match(html, /name="normalInterval" value="30"/);
+  assert.match(html, /name="focusedInterval" value="2"/);
+  assert.match(html, /name="focusedLeadDays" value="14"/);
+  assert.match(script, /function updateFrequencyForm\(\)/);
+  assert.match(script, /focusedIntervalMinutes >= schedule\.normalIntervalMinutes/);
+  assert.match(script, /nextExpectedAt/);
+});
+
 test("Picker가 표시 이름 대신 CGV 식별자를 저장한다", async () => {
-  const script = await readFile(new URL("app-20260803-12.js", publicUrl), "utf8");
+  const script = await readFile(new URL("app-20260803-13.js", publicUrl), "utf8");
 
   assert.match(script, /quickMovieNo/);
   assert.match(script, /quickTheatreSiteNo/);

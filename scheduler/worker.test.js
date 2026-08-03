@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import worker, {
   createMonitoringPlan,
   dispatchWatchWorkflow,
+  isScheduledInterval,
+  nextExpectedRun,
   WorkflowDispatchError,
 } from "./worker.js";
 
@@ -84,6 +86,72 @@ test("특정 상영일 5일 전부터 2분 감시로 전환한다", () => {
   assert.equal(baseline.nextBoostDate, "20260810");
   assert.equal(boosted.today, "20260810");
   assert.equal(boosted.intervalMinutes, 2);
+});
+
+test("저장한 평상시·집중 감지 간격을 실행 계획에 반영한다", () => {
+  const config = {
+    version: 3,
+    paused: false,
+    schedule: {
+      normalIntervalMinutes: 15,
+      focusedIntervalMinutes: 5,
+      focusedLeadDays: 3,
+    },
+    rules: [{ id: "august-15", enabled: true, dateMode: "specific", specificDates: ["20260815"] }],
+  };
+  const normal = createMonitoringPlan(config, Date.parse("2026-08-11T14:59:59Z"));
+  const focused = createMonitoringPlan(config, Date.parse("2026-08-11T15:00:00Z"));
+  assert.equal(normal.intervalMinutes, 15);
+  assert.equal(normal.mode, "normal");
+  assert.equal(normal.nextBoostDate, "20260812");
+  assert.equal(focused.intervalMinutes, 5);
+  assert.equal(focused.mode, "focused");
+});
+
+test("선택한 분 간격 경계에서만 예약 실행한다", () => {
+  const atTenMinutes = Date.parse("2026-08-03T01:30:00Z");
+  assert.equal(isScheduledInterval(atTenMinutes, 10), true);
+  assert.equal(isScheduledInterval(atTenMinutes + 5 * 60_000, 10), false);
+  assert.equal(nextExpectedRun(atTenMinutes + 30_000, 10), Date.parse("2026-08-03T01:40:00Z"));
+});
+
+test("15분 설정은 5분 Cron 중 15분 경계에서만 GitHub를 호출한다", async () => {
+  const config = {
+    version: 3,
+    paused: false,
+    schedule: {
+      normalIntervalMinutes: 15,
+      focusedIntervalMinutes: 5,
+      focusedLeadDays: 3,
+    },
+    rules: [{ id: "rolling", enabled: true, dateMode: "rolling" }],
+  };
+  const customEnv = {
+    ...env,
+    DB: {
+      prepare: () => ({
+        bind: () => ({ first: async () => ({ value: JSON.stringify(config) }) }),
+      }),
+    },
+  };
+  let dispatchCount = 0;
+  const options = {
+    fetchImpl: async () => {
+      dispatchCount += 1;
+      return new Response(null, { status: 204 });
+    },
+  };
+  await worker.scheduled({
+    scheduledTime: Date.parse("2026-08-03T01:35:00Z"),
+    cron: "*/5 * * * *",
+    noRetry: () => {},
+  }, customEnv, {}, options);
+  await worker.scheduled({
+    scheduledTime: Date.parse("2026-08-03T01:45:00Z"),
+    cron: "*/5 * * * *",
+    noRetry: () => {},
+  }, customEnv, {}, options);
+  assert.equal(dispatchCount, 1);
 });
 
 test("특정 상영일이 지나면 감시 대상에서 자동 제외한다", () => {
