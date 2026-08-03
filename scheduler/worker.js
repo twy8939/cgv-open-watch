@@ -336,6 +336,9 @@ async function apiHandler(request, env) {
 
 function securityHeaders(response) {
   const copy = new Response(response.body, response);
+  if (copy.headers.get("Content-Type")?.includes("text/html")) {
+    copy.headers.set("Cache-Control", "no-store");
+  }
   copy.headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   copy.headers.set("Referrer-Policy", "no-referrer");
   copy.headers.set("X-Content-Type-Options", "nosniff");

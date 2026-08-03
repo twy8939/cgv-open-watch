@@ -112,3 +112,17 @@ test("기본 기간에는 2분 Cron을 건너뛰고 5분 Cron만 실행한다", 
   });
   assert.equal(dispatchCount, 0);
 });
+
+test("관리 화면 HTML은 캐시하지 않고 보안 헤더를 적용한다", async () => {
+  const response = await worker.fetch(new Request("https://example.com/"), {
+    ASSETS: {
+      fetch: async () => new Response("<!doctype html><title>CGV Open Watch</title>", {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }),
+    },
+  });
+
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.match(response.headers.get("Content-Security-Policy"), /default-src 'self'/);
+  assert.equal(response.headers.get("X-Frame-Options"), "DENY");
+});
