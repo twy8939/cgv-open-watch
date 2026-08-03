@@ -26,7 +26,7 @@ test("관리 화면 선택 UI가 공통 Picker 계약을 유지한다", async ()
 });
 
 test("관리 화면이 Airbnb 기반 소비자 디자인 토큰을 사용한다", async () => {
-  const css = await readFile(new URL("styles-20260803-11.css", publicUrl), "utf8");
+  const css = await readFile(new URL("styles-20260803-12.css", publicUrl), "utf8");
 
   assert.match(css, /--brand: #ff385c/);
   assert.match(css, /--paper: #ffffff/);
@@ -36,8 +36,27 @@ test("관리 화면이 Airbnb 기반 소비자 디자인 토큰을 사용한다"
   assert.match(css, /\.mobile-menu-dialog \{/);
 });
 
+test("첫 화면은 실제 감시 판단에 필요한 정보만 표시한다", async () => {
+  const [html, script] = await Promise.all([
+    readFile(new URL("index.html", publicUrl), "utf8"),
+    readFile(new URL("app-20260803-12.js", publicUrl), "utf8"),
+  ]);
+
+  assert.match(html, /class="operation-panel"/);
+  assert.match(html, /id="systemStatus"/);
+  assert.match(html, /id="lastResultTime"/);
+  assert.match(html, /id="nextRun"/);
+  assert.match(html, /id="activeRuleCount"/);
+  assert.match(html, /id="mobileTestButton"/);
+  assert.match(html, /id="mobileCatalogButton"/);
+  assert.doesNotMatch(html, /5분 신호선|signal-board|signalClock/);
+  assert.doesNotMatch(html, /spiderPresetButton|CATALOG|OPERATIONS DESK/);
+  assert.doesNotMatch(script, /function renderClock|signalIntervalTitle|signalClock/);
+  assert.match(script, /const staleAfter = Math\.max\(15, state\.intervalMinutes \* 3\)/);
+});
+
 test("Picker가 표시 이름 대신 CGV 식별자를 저장한다", async () => {
-  const script = await readFile(new URL("app-20260803-11.js", publicUrl), "utf8");
+  const script = await readFile(new URL("app-20260803-12.js", publicUrl), "utf8");
 
   assert.match(script, /quickMovieNo/);
   assert.match(script, /quickTheatreSiteNo/);

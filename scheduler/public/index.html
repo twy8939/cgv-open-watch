@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#ffffff" />
     <title>CGV Open Watch</title>
-    <link rel="stylesheet" href="/styles-20260803-11.css" />
-    <script src="/app-20260803-11.js" type="module"></script>
+    <link rel="stylesheet" href="/styles-20260803-12.css" />
+    <script src="/app-20260803-12.js" type="module"></script>
   </head>
   <body>
     <section id="loginView" class="login-view" hidden>
@@ -55,14 +55,21 @@
           <a href="#activity"><span>03</span>실행 기록</a>
         </nav>
         <div class="rail-foot">
-          <button id="exportButton" class="rail-action">설정 내보내기</button>
-          <label class="rail-action file-button"
-            >설정 가져오기<input
-              id="importInput"
-              type="file"
-              accept="application/json"
-          /></label>
-          <button id="logoutButton" class="rail-action">로그아웃</button>
+          <details class="rail-tools">
+            <summary>관리</summary>
+            <div class="rail-tools-menu">
+              <button id="testButton" type="button">Discord 알림 테스트</button>
+              <button id="catalogButton" type="button">CGV 선택 목록 갱신</button>
+              <button id="exportButton" type="button">설정 내보내기</button>
+              <label class="file-button"
+                >설정 가져오기<input
+                  id="importInput"
+                  type="file"
+                  accept="application/json"
+              /></label>
+              <button id="logoutButton" type="button">로그아웃</button>
+            </div>
+          </details>
         </div>
       </aside>
 
@@ -72,7 +79,7 @@
             ><b>CGV</b><span>OPEN WATCH</span></a
           >
           <div class="mobile-header-actions">
-            <div class="mobile-signal"><i></i>5분 감지</div>
+            <div class="mobile-signal"><i></i>상태 확인 중</div>
             <button id="mobileMenuButton" type="button" class="mobile-menu-button" aria-label="관리 메뉴 열기" aria-haspopup="dialog" aria-expanded="false">•••</button>
           </div>
         </header>
@@ -81,68 +88,49 @@
           <section id="overview" class="overview-section">
             <div class="page-heading">
               <div>
-                <p class="kicker">OPERATIONS DESK</p>
                 <h1>예매 감시 현황</h1>
                 <p class="heading-copy">
                   새 회차가 열리면 Discord로 바로 알려드립니다.
                 </p>
               </div>
-              <div class="primary-actions">
-                <button id="testButton" class="button button-secondary">
-                  Discord 테스트
-                </button>
-                <button id="runButton" class="button button-primary">
-                  지금 감지하기 <span aria-hidden="true">↗</span>
-                </button>
-              </div>
             </div>
 
-            <div class="status-grid" aria-label="감시 상태">
-              <article class="status-card status-main">
-                <div class="status-card-head">
-                  <span>시스템 상태</span><i class="live-dot"></i>
+            <div class="operation-panel" aria-label="감시 상태">
+              <div class="operation-summary">
+                <div class="operation-status-label">
+                  <i class="live-dot"></i><span>자동 감지</span>
                 </div>
-                <strong id="systemStatus">확인 중</strong
-                ><small id="systemStatusDetail">자동 감지 상태 확인 중</small>
-              </article>
-              <article class="status-card">
-                <span>활성 규칙</span><strong id="activeRuleCount">—</strong
-                ><small>현재 켜진 감시</small>
-              </article>
-              <article class="status-card">
-                <span>다음 감지</span><strong id="nextRun">—</strong
-                ><small>한국 표준시 기준</small>
-              </article>
-              <article class="status-card">
-                <span>최근 결과</span><strong id="lastResult">—</strong
-                ><small id="lastResultTime">실행 기록 확인 중</small>
-              </article>
-            </div>
-
-            <div class="signal-board">
-              <div class="signal-copy">
-                <span class="signal-icon">◉</span>
+                <strong id="systemStatus">확인 중</strong>
+                <small id="systemStatusDetail">자동 감지 상태 확인 중</small>
+              </div>
+              <dl class="operation-metrics">
                 <div>
-                  <b id="signalIntervalTitle">5분 신호선</b><small>붉은 칸이 현재 구간입니다.</small>
+                  <dt>마지막 확인</dt>
+                  <dd id="lastResultTime">확인 중</dd>
+                  <small id="lastResult">—</small>
                 </div>
-              </div>
-              <div
-                id="signalClock"
-                class="signal-clock"
-                aria-label="시간당 자동 감지 구간"
-              ></div>
+                <div>
+                  <dt>다음 확인</dt>
+                  <dd id="nextRun">—</dd>
+                  <small>예상 시각</small>
+                </div>
+                <div>
+                  <dt>활성 규칙</dt>
+                  <dd id="activeRuleCount">—</dd>
+                  <small>현재 감시 중</small>
+                </div>
+              </dl>
+              <button id="runButton" class="button button-primary">지금 확인</button>
             </div>
           </section>
 
           <section id="quick" class="content-section quick-section">
             <div class="section-heading quick-heading">
               <div>
-                <p class="kicker">QUICK SETUP</p>
                 <h2>빠른 설정</h2>
                 <p>영화·극장·특별관·날짜만 고르면 바로 감시를 시작합니다.</p>
               </div>
               <div class="quick-heading-actions">
-                <button id="spiderPresetButton" type="button" class="button button-tertiary">스파이더맨 · 용산 · SCREENX</button>
                 <div id="quickRulePicker" class="quick-rule-picker">
                   <span>바꿀 규칙</span>
                   <div id="quickRuleTabs" class="quick-rule-tabs" role="tablist" aria-label="빠르게 변경할 감시 규칙"></div>
@@ -216,7 +204,6 @@
           <section id="rules" class="content-section rules-section">
             <div class="section-heading">
               <div>
-                <p class="kicker">WATCH LIST</p>
                 <h2>감시 규칙</h2>
                 <p>영화, 극장, 상영 조건을 조합해 관리합니다.</p>
               </div>
@@ -257,7 +244,6 @@
           <section id="activity" class="content-section activity-section">
             <div class="section-heading compact">
               <div>
-                <p class="kicker">ACTIVITY</p>
                 <h2>최근 실행</h2>
                 <p>감지가 제시간에 작동하는지 확인할 수 있습니다.</p>
               </div>
@@ -265,24 +251,7 @@
                 새로고침
               </button>
             </div>
-            <div class="activity-layout">
-              <div id="runList" class="run-list"></div>
-              <aside class="utility-panel">
-                <p class="kicker">CATALOG</p>
-                <h3>CGV 선택 목록</h3>
-                <p>CGV에서 현재 영화와 전국 극장 목록을 새로 가져옵니다.</p>
-                <div class="catalog-counts">
-                  <span><b id="movieCatalogCount">—</b>영화</span
-                  ><span><b id="theatreCatalogCount">—</b>극장</span>
-                </div>
-                <button
-                  id="catalogButton"
-                  class="button button-secondary button-block"
-                >
-                  CGV 목록 갱신
-                </button>
-              </aside>
-            </div>
+            <div id="runList" class="run-list"></div>
           </section>
         </main>
       </div>
@@ -301,6 +270,8 @@
           <a href="#activity" data-mobile-menu-link><span>실행 기록</span><i aria-hidden="true">›</i></a>
         </nav>
         <div class="mobile-menu-actions">
+          <button id="mobileTestButton" type="button">Discord 알림 테스트</button>
+          <button id="mobileCatalogButton" type="button">CGV 선택 목록 갱신</button>
           <button id="mobileExportButton" type="button">설정 내보내기</button>
           <label class="file-button">설정 가져오기<input id="mobileImportInput" type="file" accept="application/json" /></label>
           <button id="mobileLogoutButton" type="button" class="mobile-logout">로그아웃</button>

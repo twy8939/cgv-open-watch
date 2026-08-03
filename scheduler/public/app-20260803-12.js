@@ -199,8 +199,7 @@ function renderQuickSetup() {
   const hasRules = rules.length > 0;
   $("#quickEmpty").hidden = hasRules;
   $("#quickForm").hidden = !hasRules;
-  $("#spiderPresetButton").hidden = !hasRules;
-  $("#quickRulePicker").hidden = !hasRules;
+  $("#quickRulePicker").hidden = rules.length <= 1;
   if (!hasRules) return;
 
   if (!rules.some((rule) => rule.id === state.quickRuleId)) state.quickRuleId = rules[0].id;
@@ -231,7 +230,6 @@ function renderQuickSetup() {
   $("#quickDate").value = toInputDate(selectedDate);
   const editable = isQuickEditable(rule);
   $("#quickSafetyNotice").hidden = editable;
-  $("#spiderPresetButton").disabled = !editable;
   $("#quickSaveButton").disabled = !editable;
   ["#quickMoviePicker", "#quickTheatrePicker", "#quickDate"].forEach((selector) => {
     $(selector).disabled = !editable;
@@ -314,11 +312,6 @@ function renderRules() {
       completeRule(Number(button.dataset.completeIndex)),
     ),
   );
-}
-
-function renderCatalogOptions() {
-  $("#movieCatalogCount").textContent = state.catalog.movies.length || "0";
-  $("#theatreCatalogCount").textContent = state.catalog.theatres.length || "0";
 }
 
 function renderTheatres() {
@@ -841,18 +834,6 @@ async function saveQuickSetting() {
   }
 }
 
-function applySpiderPreset() {
-  setQuickMovie({ title: "스파이더맨-브랜드 뉴 데이", no: "30001192" });
-  const theatre = state.catalog.theatres.find((item) => item.siteNo === "0013")
-    ?? { name: "용산아이파크몰", siteNo: "0013", regionCode: "01", regionName: "서울" };
-  setQuickTheatre(theatre);
-  $('input[name="quickFormat"][value="SCREENX"]').checked = true;
-  $("#quickError").textContent = "";
-  updateQuickPreview();
-  toast("스파이더맨 · 용산 · SCREENX를 불러왔습니다. 날짜를 확인하고 저장해 주세요.");
-  if (!$("#quickDate").value) $("#quickDate").focus();
-}
-
 function applyQuickDate(shortcut) {
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1_000);
   let daysToAdd = shortcut === "tomorrow" ? 1 : 0;
@@ -893,7 +874,6 @@ async function loadData() {
   ]);
   state.config = config;
   state.catalog = catalog;
-  renderCatalogOptions();
   renderRules();
   clean();
   await loadStatus();
@@ -901,7 +881,7 @@ async function loadData() {
 
 function resultLabel(run) {
   if (run.status !== "completed") return "감지 실행 중";
-  if (run.conclusion === "success") return "감지 성공";
+  if (run.conclusion === "success") return "정상 완료";
   if (run.conclusion === "cancelled") return "감지 취소";
   return "감지 실패";
 }
@@ -911,32 +891,47 @@ async function loadStatus() {
   setButtonBusy(button, true, "확인 중");
   try {
     const status = await api("/api/status");
-    const healthy = !status.paused;
     state.intervalMinutes = status.intervalMinutes ?? 5;
-    $("#systemStatus").textContent = healthy
-      ? state.intervalMinutes === 2 ? "2분 집중 감지" : "5분 정상 감지"
-      : "일시정지";
-    $("#systemStatusDetail").textContent = healthy
-      ? `Cloudflare ${state.intervalMinutes}분 자동 감지`
-      : "자동 감지가 멈춰 있습니다.";
+    const latest = status.runs[0];
+    const latestAge = latest
+      ? Date.now() - new Date(latest.updatedAt).getTime()
+      : Infinity;
+    const staleAfter = Math.max(15, state.intervalMinutes * 3) * 60_000;
+    const failed = latest?.status === "completed" && latest.conclusion !== "success";
+    const running = latest && latest.status !== "completed";
+    const healthy = !status.paused
+      && status.activeRules > 0
+      && !failed
+      && latestAge <= staleAfter;
+    const systemLabel = status.paused
+      ? "일시정지"
+      : status.activeRules === 0
+        ? "활성 규칙 없음"
+        : running
+          ? "확인 중"
+          : failed
+            ? "확인 필요"
+            : latestAge > staleAfter
+              ? "확인 지연"
+              : "정상 작동 중";
+    $("#systemStatus").textContent = systemLabel;
+    $("#systemStatusDetail").textContent = `${status.activeRules}개 규칙 · ${state.intervalMinutes}분 간격`;
     $("#systemStatus").style.color = healthy ? "var(--ink)" : "var(--amber)";
-    $("#railStatus").textContent = healthy ? "정상 감지 중" : "전체 일시정지";
-    $(".mobile-signal").innerHTML = `<i></i>${state.intervalMinutes}분 감지`;
+    $(".live-dot").classList.toggle("warning", !healthy);
+    $("#railStatus").textContent = systemLabel;
+    $(".mobile-signal").innerHTML = `<i></i>${systemLabel}`;
     $(".rail-status").classList.toggle("paused", !healthy);
     $("#activeRuleCount").textContent = `${status.activeRules}개`;
-    renderClock();
-    const latest = status.runs[0];
+    renderNextRun();
     $("#lastResult").textContent = latest ? resultLabel(latest) : "기록 없음";
     $("#lastResultTime").textContent = latest
       ? new Date(latest.updatedAt).toLocaleString("ko-KR", {
           timeZone: "Asia/Seoul",
-          month: "long",
-          day: "numeric",
           hour: "2-digit",
           minute: "2-digit",
         })
       : "첫 감지 전입니다.";
-    const runs = status.runs.slice(0, 6);
+    const runs = status.runs.slice(0, 5);
     $("#runList").innerHTML = runs.length
       ? runs
           .map(
@@ -956,19 +951,9 @@ async function loadStatus() {
   }
 }
 
-function renderClock() {
+function renderNextRun() {
   const now = new Date();
   const interval = state.intervalMinutes;
-  const segments = 60 / interval;
-  const active = Math.floor(now.getMinutes() / interval);
-  $("#signalIntervalTitle").textContent = `${interval}분 신호선`;
-  $("#signalClock").style.setProperty("--segments", segments);
-  $("#signalClock").setAttribute("aria-label", `시간당 ${interval}분 감지 구간`);
-  $("#signalClock").innerHTML = Array.from(
-    { length: segments },
-    (_, index) =>
-      `<span class="${index === active ? "active" : ""}" data-minute="${index % Math.max(1, Math.round(10 / interval)) === 0 ? String(index * interval).padStart(2, "0") : ""}"></span>`,
-  ).join("");
   const next = new Date(now);
   next.setSeconds(0, 0);
   next.setMinutes((Math.floor(now.getMinutes() / interval) + 1) * interval);
@@ -1124,7 +1109,6 @@ $("#quickAdvancedButton").addEventListener("click", () =>
   openRule(quickRuleIndex()),
 );
 $("#quickCreateButton").addEventListener("click", () => openRule());
-$("#spiderPresetButton").addEventListener("click", applySpiderPreset);
 $("#quickDate").addEventListener("input", updateQuickPreview);
 $$('input[name="quickFormat"]').forEach((input) =>
   input.addEventListener("change", updateQuickPreview),
@@ -1327,6 +1311,18 @@ $("#catalogButton").addEventListener("click", () =>
     $("#catalogButton"),
   ),
 );
+$("#mobileTestButton").addEventListener("click", async () => {
+  await dispatch("test", "Discord 테스트를 요청했습니다.", $("#mobileTestButton"));
+  closeMobileMenu();
+});
+$("#mobileCatalogButton").addEventListener("click", async () => {
+  await dispatch(
+    "catalog",
+    "CGV 목록 갱신을 요청했습니다. 약 1분 뒤 새로고침해 주세요.",
+    $("#mobileCatalogButton"),
+  );
+  closeMobileMenu();
+});
 $("#refreshStatusButton").addEventListener("click", loadStatus);
 $("#exportButton").addEventListener("click", exportConfig);
 $("#mobileExportButton").addEventListener("click", () => {
@@ -1349,8 +1345,8 @@ $$(".rail-nav a").forEach((link) =>
   }),
 );
 
-renderClock();
-setInterval(renderClock, 15_000);
+renderNextRun();
+setInterval(renderNextRun, 15_000);
 const session = await api("/api/session");
 if (session.authenticated) {
   showApp();
