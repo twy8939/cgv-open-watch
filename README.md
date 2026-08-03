@@ -35,6 +35,8 @@ Discord 연결만 다시 확인하려면 관리 사이트의 `Discord 테스트`
 [CGV Open Watch 관리 사이트](https://cgv-open-watch-scheduler.rladydals8939.workers.dev)에서 다음 항목을 직접 관리할 수 있습니다.
 
 - 여러 영화 감시 규칙 추가, 편집, 삭제, 개별 활성화
+- 빠른 설정에서 영화·극장·SCREENX/IMAX/4DX·날짜를 한 화면에서 즉시 변경
+- 스파이더맨·용산아이파크몰·SCREENX 프리셋과 오늘·내일·이번 토요일 날짜 단축 선택
 - CGV 최신 영화 목록 또는 아직 목록에 없는 영화 직접 입력
 - 지역 검색과 복수 극장 선택
 - IMAX, 4DX, SCREENX 등 상영 형식과 특정 상영관 이름 지정

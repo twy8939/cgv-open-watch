@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#171717" />
     <title>CGV Open Watch</title>
-    <link rel="stylesheet" href="/styles.css?v=20260803-7" />
-    <script src="/app.js?v=20260803-7" type="module"></script>
+    <link rel="stylesheet" href="/styles.css?v=20260803-8" />
+    <script src="/app.js?v=20260803-8" type="module"></script>
   </head>
   <body>
     <section id="loginView" class="login-view" hidden>
@@ -50,8 +50,8 @@
           <i></i><span id="railStatus">감지 상태 확인 중</span>
         </div>
         <nav class="rail-nav" aria-label="관리 메뉴">
-          <a href="#overview" class="active"><span>01</span>개요</a>
-          <a href="#rules"><span>02</span>감시 규칙</a>
+          <a href="#quick" class="active"><span>01</span>빠른 설정</a>
+          <a href="#rules"><span>02</span>전체 규칙</a>
           <a href="#activity"><span>03</span>실행 기록</a>
         </nav>
         <div class="rail-foot">
@@ -129,6 +129,77 @@
                 aria-label="시간당 자동 감지 구간"
               ></div>
             </div>
+          </section>
+
+          <section id="quick" class="content-section quick-section">
+            <div class="section-heading quick-heading">
+              <div>
+                <p class="kicker">QUICK SETUP</p>
+                <h2>빠른 설정</h2>
+                <p>영화·극장·특별관·날짜만 고르면 바로 감시를 시작합니다.</p>
+              </div>
+              <div class="quick-heading-actions">
+                <button id="spiderPresetButton" type="button" class="button button-tertiary">스파이더맨 · 용산 · SCREENX</button>
+                <label class="quick-rule-picker"
+                  ><span>바꿀 규칙</span
+                  ><select id="quickRuleSelect" aria-label="빠르게 변경할 감시 규칙"></select
+                ></label>
+              </div>
+            </div>
+
+            <div id="quickEmpty" class="quick-empty" hidden>
+              <div><b>아직 감시 규칙이 없습니다.</b><span>첫 규칙은 안내에 따라 차근차근 만들 수 있습니다.</span></div>
+              <button id="quickCreateButton" class="button button-primary">첫 감시 만들기</button>
+            </div>
+
+            <form id="quickForm" class="quick-form" novalidate>
+              <div class="quick-fields">
+                <label class="quick-field"
+                  ><span><i>1</i>영화</span
+                  ><input id="quickMovie" list="quickMovieOptions" autocomplete="off" placeholder="영화 제목 검색" required />
+                  <small>목록에 없으면 제목을 직접 입력해도 됩니다.</small>
+                </label>
+                <label class="quick-field"
+                  ><span><i>2</i>극장</span
+                  ><input id="quickTheatre" list="quickTheatreOptions" autocomplete="off" placeholder="예: 용산아이파크몰" required />
+                  <small>한 곳을 선택하면 가장 빠르고 정확하게 확인합니다.</small>
+                </label>
+                <fieldset class="quick-field quick-format-field">
+                  <legend><i>3</i>상영 형식</legend>
+                  <div class="quick-format-options">
+                    <label><input type="radio" name="quickFormat" value="SCREENX" /><span>SCREENX</span></label>
+                    <label><input type="radio" name="quickFormat" value="IMAX" /><span>IMAX</span></label>
+                    <label><input type="radio" name="quickFormat" value="4DX" /><span>4DX</span></label>
+                    <label><input type="radio" name="quickFormat" value="" /><span>모든 형식</span></label>
+                  </div>
+                  <small>정확한 관 이름과 여러 형식은 전체 편집에서 설정할 수 있습니다.</small>
+                </fieldset>
+                <div class="quick-field">
+                  <span><i>4</i>상영 날짜</span>
+                  <input id="quickDate" type="date" aria-label="상영 날짜" required />
+                  <div class="quick-date-shortcuts" aria-label="날짜 빠른 선택">
+                    <button type="button" data-quick-date="today">오늘</button>
+                    <button type="button" data-quick-date="tomorrow">내일</button>
+                    <button type="button" data-quick-date="saturday">이번 토요일</button>
+                  </div>
+                  <small>상영표가 아직 없어도 날짜를 미리 지정할 수 있습니다.</small>
+                </div>
+              </div>
+
+              <datalist id="quickMovieOptions"></datalist>
+              <datalist id="quickTheatreOptions"></datalist>
+              <p id="quickError" class="form-error quick-error" role="alert"></p>
+              <div class="quick-result">
+                <div class="quick-result-copy">
+                  <span class="quick-live-dot"></span>
+                  <div><small>저장하면 이렇게 감시합니다</small><strong id="quickPreview">설정을 선택해 주세요.</strong><p id="quickFrequency">평소 5분 · 상영일 5일 전부터 2분 자동 감지</p></div>
+                </div>
+                <div class="quick-actions">
+                  <button id="quickAdvancedButton" type="button" class="button button-tertiary">전체 설정 편집</button>
+                  <button id="quickSaveButton" type="submit" class="button button-primary">이 설정으로 바로 저장</button>
+                </div>
+              </div>
+            </form>
           </section>
 
           <section id="rules" class="content-section rules-section">

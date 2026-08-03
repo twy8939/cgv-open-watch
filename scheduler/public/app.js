@@ -11,6 +11,7 @@ const state = {
   draftDates: new Set(),
   dirty: false,
   intervalMinutes: 5,
+  quickRuleIndex: 0,
 };
 
 async function api(path, options = {}) {
@@ -66,6 +67,7 @@ function showApp() {
 function setButtonBusy(button, busy, label) {
   if (!button.dataset.label) button.dataset.label = button.textContent.trim();
   button.disabled = busy;
+  button.setAttribute("aria-busy", String(busy));
   button.classList.toggle("is-busy", busy);
   button.textContent = busy ? label : button.dataset.label;
 }
@@ -116,6 +118,85 @@ function dateText(rule) {
   return `오늘부터 ${rule.lookAheadDays ?? 14}일`;
 }
 
+function quickRule() {
+  return state.config.rules[state.quickRuleIndex] ?? state.config.rules[0] ?? null;
+}
+
+function exactCatalogMovie(title) {
+  const normalized = String(title ?? "").trim().toLocaleLowerCase("ko-KR");
+  return state.catalog.movies.find(
+    (movie) => movie.title.trim().toLocaleLowerCase("ko-KR") === normalized,
+  );
+}
+
+function exactCatalogTheatre(name) {
+  const normalized = String(name ?? "").trim().toLocaleLowerCase("ko-KR");
+  return state.catalog.theatres.find(
+    (theatre) => theatre.name.trim().toLocaleLowerCase("ko-KR") === normalized,
+  );
+}
+
+function quickFormat() {
+  return $('input[name="quickFormat"]:checked')?.value ?? "";
+}
+
+function updateQuickPreview() {
+  const movie = $("#quickMovie").value.trim() || "영화";
+  const theatre = $("#quickTheatre").value.trim() || "극장";
+  const format = quickFormat() || "모든 형식";
+  const date = digits($("#quickDate").value);
+  $("#quickPreview").textContent = `${movie} · ${theatre} · ${format} · ${formatDate(date)}`;
+}
+
+function renderQuickSetup() {
+  const rules = state.config.rules;
+  const hasRules = rules.length > 0;
+  $("#quickEmpty").hidden = hasRules;
+  $("#quickForm").hidden = !hasRules;
+  $("#spiderPresetButton").hidden = !hasRules;
+  $("#quickRuleSelect").closest("label").hidden = !hasRules;
+  if (!hasRules) return;
+
+  state.quickRuleIndex = Math.min(state.quickRuleIndex, rules.length - 1);
+  const selectedId = quickRule()?.id;
+  $("#quickRuleSelect").innerHTML = rules
+    .map((rule, index) => `<option value="${index}" ${rule.id === selectedId ? "selected" : ""}>${escapeHtml(rule.name || rule.movieTitle)}</option>`)
+    .join("");
+  const rule = quickRule();
+
+  const movieTitles = [...new Set([
+    rule.movieTitle,
+    ...state.catalog.movies.map((movie) => movie.title),
+  ].filter(Boolean))];
+  $("#quickMovieOptions").innerHTML = movieTitles
+    .map((title) => `<option value="${escapeHtml(title)}"></option>`)
+    .join("");
+  const theatreNames = [...new Set([
+    ...rule.theatres.map((theatre) => theatre.name),
+    ...state.catalog.theatres.map((theatre) => theatre.name),
+  ].filter(Boolean))];
+  $("#quickTheatreOptions").innerHTML = theatreNames
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+    .join("");
+
+  $("#quickMovie").value = rule.movieTitle;
+  $("#quickTheatre").value = rule.theatres[0]?.name ?? "";
+  const supportedFormat = rule.formats.length === 1
+    && ["SCREENX", "IMAX", "4DX"].includes(rule.formats[0])
+    ? rule.formats[0]
+    : "";
+  const formatInput = $(`input[name="quickFormat"][value="${supportedFormat}"]`);
+  if (formatInput) formatInput.checked = true;
+  const selectedDate = rule.dateMode === "specific"
+    ? rule.specificDates[0]
+    : rule.dateMode === "range"
+      ? rule.startDate
+      : "";
+  $("#quickDate").value = toInputDate(selectedDate);
+  $("#quickError").textContent = "";
+  updateQuickPreview();
+}
+
 function ruleMatchesSearch(rule, query) {
   if (!query) return true;
   const haystack = [
@@ -140,6 +221,7 @@ function renderRules() {
   $("#activeRuleCount").textContent =
     `${state.config.rules.filter((rule) => rule.enabled).length}개`;
   $("#pauseToggle").checked = state.config.paused === true;
+  renderQuickSetup();
 
   if (state.config.rules.length === 0) {
     list.innerHTML = `<div class="empty-state"><div><span class="empty-icon">＋</span><h3>첫 감시 규칙을 만들어 보세요.</h3><p>평소에는 5분마다, 선택한 날짜 5일 전부터는 2분마다 예매 오픈을 확인합니다.</p><button class="button button-primary" data-empty-add>첫 규칙 만들기</button></div></div>`;
@@ -502,6 +584,93 @@ async function toggleRule(index, enabled) {
   }
 }
 
+async function saveQuickSetting() {
+  const rule = quickRule();
+  if (!rule) return;
+  const movieTitle = $("#quickMovie").value.trim();
+  const theatreName = $("#quickTheatre").value.trim();
+  const showDate = digits($("#quickDate").value);
+  if (!movieTitle) {
+    $("#quickError").textContent = "영화를 선택하거나 제목을 입력해 주세요.";
+    $("#quickMovie").focus();
+    return;
+  }
+  const catalogTheatre = exactCatalogTheatre(theatreName);
+  const currentTheatre = rule.theatres.find(
+    (theatre) => theatre.name.toLocaleLowerCase("ko-KR") === theatreName.toLocaleLowerCase("ko-KR"),
+  );
+  const theatre = catalogTheatre ?? currentTheatre;
+  if (!theatre) {
+    $("#quickError").textContent = "CGV 목록에서 극장을 선택해 주세요.";
+    $("#quickTheatre").focus();
+    return;
+  }
+  if (!/^\d{8}$/.test(showDate)) {
+    $("#quickError").textContent = "알림을 기다릴 상영 날짜를 선택해 주세요.";
+    $("#quickDate").focus();
+    return;
+  }
+
+  const movie = exactCatalogMovie(movieTitle);
+  const regionItem = state.catalog.regions.find((item) => item.code === theatre.regionCode);
+  const format = quickFormat();
+  const dateLabel = `${Number(showDate.slice(4, 6))}월 ${Number(showDate.slice(6))}일`;
+  const previousRule = structuredClone(rule);
+  const { completedAt: _completedAt, completionReason: _completionReason, ...activeRule } = rule;
+  state.config.rules[state.quickRuleIndex] = {
+    ...activeRule,
+    name: `${movieTitle} · ${theatre.name} · ${format || "전체"} · ${dateLabel}`,
+    enabled: true,
+    movieTitle,
+    movieNo: movie?.no ?? (movieTitle === rule.movieTitle ? rule.movieNo : ""),
+    theatres: [{
+      name: theatre.name,
+      siteNo: theatre.siteNo,
+      regionCode: theatre.regionCode ?? "",
+      regionName: regionItem?.name ?? theatre.regionName ?? "",
+    }],
+    formats: format ? [format] : [],
+    auditoriums: [],
+    dateMode: "specific",
+    startDate: "",
+    endDate: "",
+    specificDates: [showDate],
+  };
+
+  const button = $("#quickSaveButton");
+  $("#quickError").textContent = "";
+  setButtonBusy(button, true, "저장 중");
+  try {
+    await persistConfig("빠른 설정을 저장하고 감시를 시작했습니다.");
+    await loadStatus();
+  } catch (error) {
+    state.config.rules[state.quickRuleIndex] = previousRule;
+    renderRules();
+    $("#quickError").textContent = error.message;
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+function applySpiderPreset() {
+  $("#quickMovie").value = "스파이더맨-브랜드 뉴 데이";
+  $("#quickTheatre").value = "용산아이파크몰";
+  $('input[name="quickFormat"][value="SCREENX"]').checked = true;
+  $("#quickError").textContent = "";
+  updateQuickPreview();
+  toast("스파이더맨 · 용산 · SCREENX를 불러왔습니다. 날짜를 확인하고 저장해 주세요.");
+  if (!$("#quickDate").value) $("#quickDate").focus();
+}
+
+function applyQuickDate(shortcut) {
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1_000);
+  let daysToAdd = shortcut === "tomorrow" ? 1 : 0;
+  if (shortcut === "saturday") daysToAdd = (6 - kstNow.getUTCDay() + 7) % 7;
+  kstNow.setUTCDate(kstNow.getUTCDate() + daysToAdd);
+  $("#quickDate").value = kstNow.toISOString().slice(0, 10);
+  updateQuickPreview();
+}
+
 async function completeRule(index) {
   if (!confirm("예매를 마쳤나요? 이 규칙의 자동 감시를 종료합니다.")) return;
   const previousRule = structuredClone(state.config.rules[index]);
@@ -561,6 +730,7 @@ async function loadStatus() {
       : "자동 감지가 멈춰 있습니다.";
     $("#systemStatus").style.color = healthy ? "var(--green)" : "var(--amber)";
     $("#railStatus").textContent = healthy ? "정상 감지 중" : "전체 일시정지";
+    $(".mobile-signal").innerHTML = `<i></i>${state.intervalMinutes}분 감지`;
     $(".rail-status").classList.toggle("paused", !healthy);
     $("#activeRuleCount").textContent = `${status.activeRules}개`;
     renderClock();
@@ -666,6 +836,28 @@ $("#logoutButton").addEventListener("click", async () => {
   await api("/api/logout", { method: "POST" });
   showLogin();
 });
+$("#quickRuleSelect").addEventListener("change", (event) => {
+  state.quickRuleIndex = Number(event.target.value);
+  renderQuickSetup();
+});
+$("#quickForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveQuickSetting();
+});
+$("#quickAdvancedButton").addEventListener("click", () =>
+  openRule(state.quickRuleIndex),
+);
+$("#quickCreateButton").addEventListener("click", () => openRule());
+$("#spiderPresetButton").addEventListener("click", applySpiderPreset);
+["#quickMovie", "#quickTheatre", "#quickDate"].forEach((selector) =>
+  $(selector).addEventListener("input", updateQuickPreview),
+);
+$$('input[name="quickFormat"]').forEach((input) =>
+  input.addEventListener("change", updateQuickPreview),
+);
+$$('[data-quick-date]').forEach((button) =>
+  button.addEventListener("click", () => applyQuickDate(button.dataset.quickDate)),
+);
 $("#addRuleButton").addEventListener("click", () => openRule());
 $("#ruleSearch").addEventListener("input", renderRules);
 $("#regionSelect").addEventListener("change", renderTheatres);
