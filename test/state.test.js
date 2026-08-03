@@ -33,20 +33,37 @@ test("이미 본 회차는 다시 알리지 않는다", () => {
     version: 1,
     initialized: true,
     updatedAt: "2026-08-02T00:00:00Z",
-    seen: { [schedule.key]: { ...schedule, firstSeenAt: "2026-08-02T00:00:00Z" } },
+    seen: {
+      [schedule.key]: { ...schedule, firstSeenAt: "2026-08-02T00:00:00Z" },
+    },
   };
-  const result = updateState(previous, [schedule], { now: new Date("2026-08-02T00:05:00Z") });
+  const result = updateState(previous, [schedule], {
+    now: new Date("2026-08-02T00:05:00Z"),
+  });
   assert.equal(result.notifications.length, 0);
   assert.equal(result.changed, false);
   assert.equal(result.state, previous);
 });
 
 test("새 회차는 초기화 후 한 번만 알린다", () => {
-  const previous = { version: 2, initialized: true, updatedAt: null, seen: {}, pending: {} };
-  const first = updateState(previous, [schedule], { now: new Date("2026-08-02T00:00:00Z") });
-  assert.deepEqual(first.notifications.map((item) => item.key), [schedule.key]);
+  const previous = {
+    version: 2,
+    initialized: true,
+    updatedAt: null,
+    seen: {},
+    pending: {},
+  };
+  const first = updateState(previous, [schedule], {
+    now: new Date("2026-08-02T00:00:00Z"),
+  });
+  assert.deepEqual(
+    first.notifications.map((item) => item.key),
+    [schedule.key],
+  );
   assert.equal(first.state.pending[schedule.key].key, schedule.key);
-  const second = updateState(first.state, [schedule], { now: new Date("2026-08-02T00:05:00Z") });
+  const second = updateState(first.state, [schedule], {
+    now: new Date("2026-08-02T00:05:00Z"),
+  });
   assert.equal(second.notifications.length, 0);
   assert.equal(second.state.pending[schedule.key].key, schedule.key);
 });
@@ -68,20 +85,93 @@ test("예매 준비 회차가 열린 순간에만 최초 한 번 알린다", () 
   assert.equal(beforeOpen.length, 0);
   assert.equal(baseline.notifications.length, 0);
 
-  const afterOpen = selectTargetSchedules([{ ...rawSchedule, saleEnabled: true }], config);
+  const afterOpen = selectTargetSchedules(
+    [{ ...rawSchedule, saleEnabled: true }],
+    config,
+  );
   const detected = updateState(baseline.state, afterOpen, {
     now: new Date("2026-08-02T00:05:00Z"),
   });
   assert.equal(afterOpen.length, 1);
   const openedKey = afterOpen[0].key;
-  assert.deepEqual(detected.notifications.map((item) => item.key), [openedKey]);
-  assert.equal(detected.state.pending[openedKey].queuedAt, "2026-08-02T00:05:00.000Z");
+  assert.deepEqual(
+    detected.notifications.map((item) => item.key),
+    [openedKey],
+  );
+  assert.equal(
+    detected.state.pending[openedKey].queuedAt,
+    "2026-08-02T00:05:00.000Z",
+  );
 
   const repeated = updateState(detected.state, afterOpen, {
     now: new Date("2026-08-02T00:10:00Z"),
   });
   assert.equal(repeated.notifications.length, 0);
   assert.equal(Object.keys(repeated.state.pending).length, 1);
+});
+
+test("아직 없는 특정 날짜 회차가 나중에 열리면 한 번 알린다", () => {
+  const config = {
+    id: "august-15-watch",
+    movieTitle: schedule.movieTitle,
+    theatres: [{ siteNo: "0013" }],
+    formats: ["SCREENX"],
+    auditoriums: [],
+    dateMode: "specific",
+    specificDates: ["20260815"],
+    startTime: "0000",
+    endTime: "4759",
+    minSeats: 1,
+  };
+  const previous = {
+    version: 3,
+    initializedRules: { "august-15-watch": "same-rule" },
+    updatedAt: "2026-08-03T00:00:00Z",
+    seen: {},
+    pending: {},
+  };
+  const beforeOpen = updateState(previous, selectTargetSchedules([], config), {
+    now: new Date("2026-08-03T00:05:00Z"),
+    rules: [{ id: config.id, fingerprint: "same-rule" }],
+  });
+  assert.equal(beforeOpen.notifications.length, 0);
+
+  const wrongDate = selectTargetSchedules(
+    [
+      {
+        ...schedule,
+        siteNo: "0013",
+        showDate: "20260814",
+        formatName: "SCREENX",
+        saleEnabled: true,
+      },
+    ],
+    config,
+  );
+  assert.equal(wrongDate.length, 0);
+
+  const opened = selectTargetSchedules(
+    [
+      {
+        ...schedule,
+        siteNo: "0013",
+        showDate: "20260815",
+        formatName: "SCREENX",
+        saleEnabled: true,
+      },
+    ],
+    config,
+  );
+  const detected = updateState(beforeOpen.state, opened, {
+    now: new Date("2026-08-03T00:10:00Z"),
+    rules: [{ id: config.id, fingerprint: "same-rule" }],
+  });
+  assert.equal(detected.notifications.length, 1);
+  const repeated = updateState(detected.state, opened, {
+    now: new Date("2026-08-03T00:15:00Z"),
+    rules: [{ id: config.id, fingerprint: "same-rule" }],
+  });
+  assert.equal(repeated.notifications.length, 0);
 });
 
 test("전송 성공 회차만 대기열에서 제거한다", () => {
@@ -105,12 +195,15 @@ test("전송 성공 회차만 대기열에서 제거한다", () => {
 test("version 1 상태 파일을 규칙별 기준선이 있는 version 3으로 읽는다", async () => {
   const directory = await mkdtemp(join(tmpdir(), "cgv-state-"));
   const statePath = join(directory, "notifications.json");
-  await writeFile(statePath, JSON.stringify({
-    version: 1,
-    initialized: true,
-    updatedAt: "2026-08-02T00:00:00Z",
-    seen: { [schedule.key]: schedule },
-  }));
+  await writeFile(
+    statePath,
+    JSON.stringify({
+      version: 1,
+      initialized: true,
+      updatedAt: "2026-08-02T00:00:00Z",
+      seen: { [schedule.key]: schedule },
+    }),
+  );
   const result = await readState(statePath);
   assert.equal(result.version, 3);
   assert.ok(Object.hasOwn(result.initializedRules, "legacy-default"));
@@ -126,7 +219,9 @@ test("30일마다 상태를 갱신해 공개 저장소 예약 실행 중단을 �
     seen: {},
     pending: {},
   };
-  const result = updateState(previous, [], { now: new Date("2026-07-01T00:00:00Z") });
+  const result = updateState(previous, [], {
+    now: new Date("2026-07-01T00:00:00Z"),
+  });
   assert.equal(result.changed, true);
   assert.equal(result.state.updatedAt, "2026-07-01T00:00:00.000Z");
   assert.equal(result.notifications.length, 0);

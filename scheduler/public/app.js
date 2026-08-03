@@ -8,6 +8,7 @@ const state = {
   wizardStep: 1,
   dialogDirty: false,
   draftTheatres: new Map(),
+  draftDates: new Set(),
   dirty: false,
 };
 
@@ -106,8 +107,11 @@ function toInputDate(value) {
 function dateText(rule) {
   if (rule.dateMode === "range")
     return `${formatDate(rule.startDate)}–${formatDate(rule.endDate)}`;
-  if (rule.dateMode === "specific")
-    return `선택한 날짜 ${rule.specificDates?.length ?? 0}개`;
+  if (rule.dateMode === "specific") {
+    const dates = rule.specificDates ?? [];
+    if (dates.length === 1) return `${formatDate(dates[0])} 오픈 대기`;
+    return dates.map(formatDate).join(", ");
+  }
   return `오늘부터 ${rule.lookAheadDays ?? 14}일`;
 }
 
@@ -264,6 +268,39 @@ function emptyRule() {
   };
 }
 
+function renderSpecificDates() {
+  const dates = [...state.draftDates].sort();
+  $("#specificDateChips").innerHTML = dates.length
+    ? dates
+        .map(
+          (date) =>
+            `<span>${escapeHtml(formatDate(date))}<button type="button" data-remove-date="${escapeHtml(date)}" aria-label="${escapeHtml(formatDate(date))} 삭제">×</button></span>`,
+        )
+        .join("")
+    : "<small>아직 기다릴 날짜를 추가하지 않았습니다.</small>";
+  $$("[data-remove-date]").forEach((button) =>
+    button.addEventListener("click", () => {
+      state.draftDates.delete(button.dataset.removeDate);
+      state.dialogDirty = true;
+      renderSpecificDates();
+    }),
+  );
+}
+
+function addSpecificDate() {
+  const selected = digits($("#specificDatePicker").value);
+  if (selected.length !== 8) {
+    $("#ruleError").textContent = "기다릴 날짜를 선택해 주세요.";
+    $("#specificDatePicker").focus();
+    return;
+  }
+  state.draftDates.add(selected);
+  state.dialogDirty = true;
+  $("#specificDatePicker").value = "";
+  $("#ruleError").textContent = "";
+  renderSpecificDates();
+}
+
 function openRule(index = -1) {
   state.editingIndex = index;
   state.wizardStep = 1;
@@ -273,6 +310,7 @@ function openRule(index = -1) {
   state.draftTheatres = new Map(
     rule.theatres.map((theatre) => [theatre.siteNo, theatre]),
   );
+  state.draftDates = new Set(rule.specificDates ?? []);
   $("#dialogTitle").textContent =
     index >= 0 ? "감시 규칙 편집" : "감시 규칙 만들기";
   $("#deleteRuleButton").hidden = index < 0;
@@ -296,13 +334,14 @@ function openRule(index = -1) {
   $("#lookAheadDays").value = rule.lookAheadDays;
   $("#startDate").value = toInputDate(rule.startDate);
   $("#endDate").value = toInputDate(rule.endDate);
-  $("#specificDates").value = rule.specificDates.map(formatDate).join(", ");
+  $("#specificDatePicker").value = "";
   $("#startTime").value = displayTime(rule.startTime);
   $("#endTime").value = displayTime(rule.endTime);
   $("#minSeats").value = rule.minSeats;
   $("#notifyExisting").checked = rule.notifyExisting;
   $("#ruleError").textContent = "";
   renderTheatres();
+  renderSpecificDates();
   updateDateFields();
   setWizardStep(1);
   $("#ruleDialog").showModal();
@@ -326,11 +365,7 @@ function ruleFromForm() {
     lookAheadDays: Number($("#lookAheadDays").value || 14),
     startDate: digits($("#startDate").value),
     endDate: digits($("#endDate").value),
-    specificDates: $("#specificDates")
-      .value.split(",")
-      .map(digits)
-      .filter((date) => date.length === 8)
-      .sort(),
+    specificDates: [...state.draftDates].sort(),
     startTime: digits($("#startTime").value),
     endTime: digits($("#endTime").value),
     minSeats: Number($("#minSeats").value || 1),
@@ -362,7 +397,7 @@ function validateStep(step, rule = ruleFromForm()) {
   )
     return {
       message: "감시할 날짜를 하나 이상 입력해 주세요.",
-      field: $("#specificDates"),
+      field: $("#specificDatePicker"),
     };
   if (
     step === 3 &&
@@ -417,8 +452,12 @@ function renderRuleReview(rule) {
     ? rule.formats.join(", ")
     : "모든 상영 형식";
   const theatreLabel = rule.theatres.map((theatre) => theatre.name).join(", ");
+  const waitingSentence =
+    rule.dateMode === "specific"
+      ? `${rule.specificDates.map(formatDate).join(", ")} 회차가 CGV에 처음 열리는 순간 알립니다.`
+      : `${dateText(rule)} 동안 감지합니다.`;
   $("#ruleReview").innerHTML = `
-    <div class="review-sentence">영화 <em>${escapeHtml(rule.movieTitle)}</em> · 극장 <em>${escapeHtml(theatreLabel)}</em>.<br>${escapeHtml(dateText(rule))} 동안 감지합니다.</div>
+    <div class="review-sentence">영화 <em>${escapeHtml(rule.movieTitle)}</em> · 극장 <em>${escapeHtml(theatreLabel)}</em>.<br>${escapeHtml(waitingSentence)}</div>
     <div class="review-item"><span>극장</span><b>${escapeHtml(theatreLabel)}</b></div>
     <div class="review-item"><span>상영 형식</span><b>${escapeHtml(formatLabel)}</b></div>
     <div class="review-item"><span>날짜</span><b>${escapeHtml(dateText(rule))}</b></div>
@@ -596,6 +635,7 @@ $("#addRuleButton").addEventListener("click", () => openRule());
 $("#ruleSearch").addEventListener("input", renderRules);
 $("#regionSelect").addEventListener("change", renderTheatres);
 $("#theatreSearch").addEventListener("input", renderTheatres);
+$("#addSpecificDate").addEventListener("click", addSpecificDate);
 $("#movieSelect").addEventListener("change", () => {
   const movie = state.catalog.movies.find(
     (item) => item.no === $("#movieSelect").value,
