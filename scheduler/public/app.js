@@ -140,6 +140,22 @@ function quickFormat() {
   return $('input[name="quickFormat"]:checked')?.value ?? "";
 }
 
+function isQuickEditable(rule) {
+  const formats = rule?.formats ?? [];
+  return rule?.enabled === true
+    && !rule.completedAt
+    && !rule.completionReason
+    && rule.theatres?.length === 1
+    && (formats.length === 0
+      || (formats.length === 1 && ["SCREENX", "IMAX", "4DX"].includes(formats[0])))
+    && (rule.auditoriums?.length ?? 0) === 0
+    && rule.dateMode === "specific"
+    && rule.specificDates?.length === 1
+    && rule.startTime === "0000"
+    && rule.endTime === "4759"
+    && Number(rule.minSeats ?? 1) === 1;
+}
+
 function updateQuickPreview() {
   const movie = $("#quickMovie").value.trim() || "영화";
   const theatre = $("#quickTheatre").value.trim() || "극장";
@@ -193,6 +209,16 @@ function renderQuickSetup() {
       ? rule.startDate
       : "";
   $("#quickDate").value = toInputDate(selectedDate);
+  const editable = isQuickEditable(rule);
+  $("#quickSafetyNotice").hidden = editable;
+  $("#spiderPresetButton").disabled = !editable;
+  $("#quickSaveButton").disabled = !editable;
+  ["#quickMovie", "#quickTheatre", "#quickDate"].forEach((selector) => {
+    $(selector).disabled = !editable;
+  });
+  $$('input[name="quickFormat"], [data-quick-date]').forEach((input) => {
+    input.disabled = !editable;
+  });
   $("#quickError").textContent = "";
   updateQuickPreview();
 }
@@ -587,6 +613,10 @@ async function toggleRule(index, enabled) {
 async function saveQuickSetting() {
   const rule = quickRule();
   if (!rule) return;
+  if (!isQuickEditable(rule)) {
+    $("#quickError").textContent = "상세 조건을 보호하기 위해 전체 설정 편집을 이용해 주세요.";
+    return;
+  }
   const movieTitle = $("#quickMovie").value.trim();
   const theatreName = $("#quickTheatre").value.trim();
   const showDate = digits($("#quickDate").value);
@@ -614,12 +644,10 @@ async function saveQuickSetting() {
   const movie = exactCatalogMovie(movieTitle);
   const regionItem = state.catalog.regions.find((item) => item.code === theatre.regionCode);
   const format = quickFormat();
-  const dateLabel = `${Number(showDate.slice(4, 6))}월 ${Number(showDate.slice(6))}일`;
   const previousRule = structuredClone(rule);
   const { completedAt: _completedAt, completionReason: _completionReason, ...activeRule } = rule;
   state.config.rules[state.quickRuleIndex] = {
     ...activeRule,
-    name: `${movieTitle} · ${theatre.name} · ${format || "전체"} · ${dateLabel}`,
     enabled: true,
     movieTitle,
     movieNo: movie?.no ?? (movieTitle === rule.movieTitle ? rule.movieNo : ""),

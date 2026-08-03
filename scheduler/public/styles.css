@@ -686,6 +686,19 @@ main {
   padding: 0 24px;
   background: var(--danger-soft);
 }
+.quick-safety-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-top: 1px solid #ead5a9;
+  font-size: 12px;
+}
+.quick-safety-notice span {
+  line-height: 1.5;
+}
 .quick-error:not(:empty) {
   padding-top: 12px;
   padding-bottom: 12px;
@@ -1765,6 +1778,10 @@ input[role="switch"]:checked::after {
   }
   .quick-result {
     align-items: stretch;
+    flex-direction: column;
+  }
+  .quick-safety-notice {
+    align-items: flex-start;
     flex-direction: column;
   }
   .quick-result-copy strong {
