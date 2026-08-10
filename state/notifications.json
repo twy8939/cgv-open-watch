@@ -1,9 +1,9 @@
 {
   "version": 3,
   "initializedRules": {
-    "legacy-default": "c1d01786cb31070e89a4"
+    "legacy-default": "0027e386bf70e979fecc"
   },
-  "updatedAt": "2026-08-10T13:15:23.336Z",
+  "updatedAt": "2026-08-10T13:20:47.848Z",
   "seen": {
     "0013:스파이더맨브랜드뉴데이:20260808:14관screenxlaser:0840": {
       "firstSeenAt": "2026-08-01T15:49:28.250Z",
@@ -1604,6 +1604,33 @@
       "movieTitle": "스파이더맨-브랜드 뉴 데이",
       "auditoriumName": "14관[SCREENX] (Laser)",
       "startTime": "2415",
+      "ruleId": "legacy-default"
+    },
+    "0013:스파이더맨브랜드뉴데이:20260815:4dx관:1010": {
+      "firstSeenAt": "2026-08-10T13:20:47.848Z",
+      "showDate": "20260815",
+      "theatreName": "용산아이파크몰",
+      "movieTitle": "스파이더맨-브랜드 뉴 데이",
+      "auditoriumName": "4DX관",
+      "startTime": "1010",
+      "ruleId": "legacy-default"
+    },
+    "0013:스파이더맨브랜드뉴데이:20260815:4dx관:1310": {
+      "firstSeenAt": "2026-08-10T13:20:47.848Z",
+      "showDate": "20260815",
+      "theatreName": "용산아이파크몰",
+      "movieTitle": "스파이더맨-브랜드 뉴 데이",
+      "auditoriumName": "4DX관",
+      "startTime": "1310",
+      "ruleId": "legacy-default"
+    },
+    "0013:스파이더맨브랜드뉴데이:20260815:4dx관:2320": {
+      "firstSeenAt": "2026-08-10T13:20:47.848Z",
+      "showDate": "20260815",
+      "theatreName": "용산아이파크몰",
+      "movieTitle": "스파이더맨-브랜드 뉴 데이",
+      "auditoriumName": "4DX관",
+      "startTime": "2320",
       "ruleId": "legacy-default"
     }
   },
