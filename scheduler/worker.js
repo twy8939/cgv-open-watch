@@ -153,10 +153,12 @@ function ruleEndDate(rule) {
   return null;
 }
 
-function ruleBoostDate(rule) {
-  if (rule?.dateMode === "specific") return [...(rule.specificDates ?? [])].sort()[0] ?? null;
-  if (rule?.dateMode === "range") return rule.startDate ?? null;
-  return null;
+function ruleBoostDates(rule, today) {
+  if (rule?.dateMode === "specific") {
+    return [...(rule.specificDates ?? [])].filter((date) => date >= today).sort();
+  }
+  if (rule?.dateMode === "range" && rule.startDate) return [rule.startDate];
+  return [];
 }
 
 export function createMonitoringPlan(config, scheduledTime = Date.now()) {
@@ -169,7 +171,7 @@ export function createMonitoringPlan(config, scheduledTime = Date.now()) {
     return endDate != null && endDate < today;
   });
   const activeRules = enabledRules.filter((rule) => !expiredRules.includes(rule));
-  const boostDates = activeRules.map(ruleBoostDate).filter(Boolean).sort();
+  const boostDates = activeRules.flatMap((rule) => ruleBoostDates(rule, today)).sort();
   const boosted = boostDates.some((date) => {
     const daysUntil = dateOrdinal(date) - todayOrdinal;
     return daysUntil <= schedule.focusedLeadDays;

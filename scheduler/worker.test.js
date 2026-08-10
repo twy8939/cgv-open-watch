@@ -166,6 +166,26 @@ test("특정 상영일이 지나면 감시 대상에서 자동 제외한다", ()
   assert.deepEqual(plan.expiredRules.map((rule) => rule.id), ["august-15"]);
 });
 
+test("여러 특정 날짜는 다음 예정일을 기준으로 집중 감지를 계산한다", () => {
+  const config = {
+    version: 3,
+    paused: false,
+    rules: [{
+      id: "august-dates",
+      enabled: true,
+      dateMode: "specific",
+      specificDates: ["20260815", "20260829"],
+    }],
+  };
+  const betweenDates = createMonitoringPlan(config, Date.parse("2026-08-19T15:00:00Z"));
+  const focusedAgain = createMonitoringPlan(config, Date.parse("2026-08-23T15:00:00Z"));
+  assert.equal(betweenDates.today, "20260820");
+  assert.equal(betweenDates.intervalMinutes, 5);
+  assert.equal(betweenDates.nextBoostDate, "20260824");
+  assert.equal(focusedAgain.today, "20260824");
+  assert.equal(focusedAgain.intervalMinutes, 2);
+});
+
 test("기본 기간에는 2분 Cron을 건너뛰고 5분 Cron만 실행한다", async () => {
   let dispatchCount = 0;
   await worker.scheduled({
