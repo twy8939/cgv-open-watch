@@ -3,48 +3,8 @@
   "initializedRules": {
     "legacy-default": "0027e386bf70e979fecc"
   },
-  "updatedAt": "2026-08-11T15:00:47.920Z",
+  "updatedAt": "2026-08-12T15:00:57.555Z",
   "seen": {
-    "0013:스파이더맨브랜드뉴데이:20260810:스트레스리스시네마cinedechef:2100": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "스트레스리스 시네마[CINE de CHEF]",
-      "startTime": "2100"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마acinedechef:0820": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
-      "startTime": "0820"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마acinedechef:1510": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
-      "startTime": "1510"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마bcinedechef:1240": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
-      "startTime": "1240"
-    },
-    "0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마bcinedechef:2000": {
-      "firstSeenAt": "2026-08-01T15:49:28.250Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
-      "startTime": "2000"
-    },
     "0013:스파이더맨브랜드뉴데이:20260811:스트레스리스시네마cinedechef:0820": {
       "firstSeenAt": "2026-08-01T15:49:28.250Z",
       "showDate": "20260811",
@@ -108,51 +68,6 @@
       "movieTitle": "스파이더맨-브랜드 뉴 데이",
       "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
       "startTime": "2050"
-    },
-    "legacy-default:0013:스파이더맨브랜드뉴데이:20260810:스트레스리스시네마cinedechef:2100": {
-      "firstSeenAt": "2026-08-03T02:58:22.492Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "스트레스리스 시네마[CINE de CHEF]",
-      "startTime": "2100",
-      "ruleId": "legacy-default"
-    },
-    "legacy-default:0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마acinedechef:0820": {
-      "firstSeenAt": "2026-08-03T02:58:22.492Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
-      "startTime": "0820",
-      "ruleId": "legacy-default"
-    },
-    "legacy-default:0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마acinedechef:1510": {
-      "firstSeenAt": "2026-08-03T02:58:22.492Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 A[CINE de CHEF]",
-      "startTime": "1510",
-      "ruleId": "legacy-default"
-    },
-    "legacy-default:0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마bcinedechef:1240": {
-      "firstSeenAt": "2026-08-03T02:58:22.492Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
-      "startTime": "1240",
-      "ruleId": "legacy-default"
-    },
-    "legacy-default:0013:스파이더맨브랜드뉴데이:20260810:템퍼시네마bcinedechef:2000": {
-      "firstSeenAt": "2026-08-03T02:58:22.492Z",
-      "showDate": "20260810",
-      "theatreName": "용산아이파크몰",
-      "movieTitle": "스파이더맨-브랜드 뉴 데이",
-      "auditoriumName": "템퍼 시네마 B[CINE de CHEF]",
-      "startTime": "2000",
-      "ruleId": "legacy-default"
     },
     "legacy-default:0013:스파이더맨브랜드뉴데이:20260811:스트레스리스시네마cinedechef:0820": {
       "firstSeenAt": "2026-08-03T02:58:22.492Z",
